@@ -131,3 +131,7 @@ cython_debug/
 
 # OS Stuff
 .DS_store
+
+scrap/
+examples/data/allen/
+*nimgen*.csv
