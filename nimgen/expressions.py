@@ -1,3 +1,8 @@
+# Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
+#          Sami Hamdan <s.hamdan@fz-juelich.de>
+#          Vera Komeyer <v.komeyer@fz-juelich.de>
+#          Kaustubh Patil <k.patil@fz-juelich.de>
+# License: AGPL
 import numpy as np
 import pandas as pd
 

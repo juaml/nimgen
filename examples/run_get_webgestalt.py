@@ -1,4 +1,7 @@
-
+# Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
+#          Sami Hamdan <s.hamdan@fz-juelich.de>
+#          Vera Komeyer <v.komeyer@fz-juelich.de>
+# License: AGPL
 import nimgen
 import pandas as pd
 
