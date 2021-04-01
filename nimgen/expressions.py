@@ -43,8 +43,47 @@ def _get_cached_results(atlas):
 
 
 def get_gene_expression(weights, atlas, allen_data_dir=None,
-                        force_recompute=False, save_expressions=False,
-                        multiple_correction='fdr_bh'):
+                        save_expressions=True, force_recompute=False,
+                        multiple_correction='fdr_bh', alpha=0.05):
+    """Get the genes expressed in the atlas that correlate with the
+    specified weights.
+
+    Parameters
+    ----------
+    weights : list(float) or np.ndarray or pandas.Series or pandas.DataFrame
+        Weights for each ROI in the atlas
+    atlas : niimg-like object
+        A parcellation image in MNI space, where each parcel is identified by a
+        unique integer ID.
+    allen_data_dir : pathlib.Path or string
+        Directory where expression data should be downloaded (if it does not
+        already exist) / loaded.
+    save_expressions : bool
+        If True (default), the expressions on the atlas will be saved for later
+        calls to the function with the same atlas. It will create a file named
+        `nimgen_{atlas}_expressions.csv` next to the atlas file.
+    force_recompute : bool
+        If True, disregard the previously saved expressions and recompute the
+        gene expressions using abagen. Defaults to False.
+    multiple_correction : str
+        Method to use for the correction for multiple comparisons. Check
+        `statsmodels.stats.multitest.mutipletests` for a list of available
+        options. Defaults to 'fdr_bh'
+    alpha : float
+        FWER, family-wise error rate, e.g. 0.1. Defaults to 0.05.
+
+    Returns
+    -------
+    genes : list(str)
+        A list will all the genes that are expressed in the atlas and correlate
+        with the weights.
+
+    Raises
+    ------
+    ValueError
+        If there is a problem with the Atlas and/or the weights.
+
+    """
     # WARNING: If this changes, then all the cached results
     # must be invalidated. TODO: Allow for multiple parameters
     # and save parameters values.
@@ -85,6 +124,6 @@ def get_gene_expression(weights, atlas, allen_data_dir=None,
     pval = exp.apply(
         lambda ser: stats.pearsonr(ser.values, weights.squeeze().values)[1])
 
-    reject, *_ = multipletests(pval, method=multiple_correction)
+    reject, *_ = multipletests(pval, alpha=alpha, method=multiple_correction)
     genes = pval[reject].index.values.tolist()
     return genes
