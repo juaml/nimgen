@@ -1,3 +1,8 @@
+"""
+Analyse gene expressions in webgestalt
+======================================
+
+"""
 # Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
 #          Sami Hamdan <s.hamdan@fz-juelich.de>
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
