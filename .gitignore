@@ -134,4 +134,5 @@ cython_debug/
 
 scrap/
 examples/data/allen/
+examples/data/weights
 *nimgen*.csv
