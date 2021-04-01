@@ -44,7 +44,7 @@ def _get_cached_results(atlas):
 
 def get_gene_expression(weights, atlas, allen_data_dir=None,
                         force_recompute=False, save_expressions=False,
-                        alpha=0.05):
+                        multiple_correction='fdr_bh'):
     # WARNING: If this changes, then all the cached results
     # must be invalidated. TODO: Allow for multiple parameters
     # and save parameters values.
@@ -85,6 +85,6 @@ def get_gene_expression(weights, atlas, allen_data_dir=None,
     pval = exp.apply(
         lambda ser: stats.pearsonr(ser.values, weights.squeeze().values)[1])
 
-    reject, *_ = multipletests(pval, method='fdr_bh')
+    reject, *_ = multipletests(pval, method=multiple_correction)
     genes = pval[reject].index.values.tolist()
     return genes
