@@ -1,3 +1,0 @@
-abagen
-numpy
-statsmodels

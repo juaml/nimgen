@@ -1,0 +1,14 @@
+
+:orphan:
+
+.. _sphx_glr_auto_examples_sg_execution_times:
+
+Computation times
+=================
+**00:16.893** total execution time for **auto_examples** files:
+
++-------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_run_get_webgestalt.py` (``run_get_webgestalt.py``)           | 00:10.907 | 0.0 MB |
++-------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_run_get_gene_expression.py` (``run_get_gene_expression.py``) | 00:05.986 | 0.0 MB |
++-------------------------------------------------------------------------------------------+-----------+--------+
