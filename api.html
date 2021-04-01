@@ -213,7 +213,60 @@ with the weights.</p>
 </dl>
 </dd></dl>
 
-<span class="target" id="module-nimgen.webgestalt"></span></div>
+<span class="target" id="module-nimgen.webgestalt"></span><dl class="py function">
+<dt id="nimgen.webgestalt.webgestalt">
+<code class="sig-prename descclassname"><span class="pre">nimgen.webgestalt.</span></code><code class="sig-name descname"><span class="pre">webgestalt</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">genes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enrich_db_category</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enrich_db_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enrich_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ORA'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">id_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genesymbol'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'agilent_sureprint_g3_ge_8x60k'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">organism</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'hsapiens'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sig_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fdr'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sig_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">browser</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'chrome'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nimgen.webgestalt.webgestalt" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set-up an analysis to be performed in webgestalt.
+See <a class="reference external" href="http://www.webgestalt.org">http://www.webgestalt.org</a></p>
+<p>Requires selenium and the browser driver installed. 
+See <a class="reference external" href="https://juaml.github.io/nimgen/installation.html">https://juaml.github.io/nimgen/installation.html</a></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>genes</strong><span class="classifier">list(str)</span></dt><dd><p>A list will all the genes that will take part in the webgestalt
+analysis.</p>
+</dd>
+<dt><strong>enrich_db_category</strong><span class="classifier">str</span></dt><dd><p>Functional database category. Options are geneontology, pathway,
+network, disease, drug, phenotype, chromosomalLocation,
+community-contributed, others.</p>
+</dd>
+<dt><strong>enrich_db_name</strong><span class="classifier">str</span></dt><dd><p>Depends on enrich_db_category. Check <a class="reference external" href="http://www.webgestalt.org">http://www.webgestalt.org</a> for
+options.</p>
+</dd>
+<dt><strong>enrich_method</strong><span class="classifier">str</span></dt><dd><p>Options are: ORA, GSEA, NTA. Defaults to ‘ORA’.</p>
+</dd>
+<dt><strong>id_type: str</strong></dt><dd><p>Gene ID Type of the gene list. Check <a class="reference external" href="http://www.webgestalt.org">http://www.webgestalt.org</a> for
+options. Defaulkts to ‘genesymbol’.</p>
+</dd>
+<dt><strong>refset</strong><span class="classifier">str</span></dt><dd><p>Built-in reference set or microarray platform (only when
+<cite>enrich_method=’ORA’</cite>). Defaults to ‘agilent_sureprint_g3_ge_8x60k’.</p>
+</dd>
+<dt><strong>organism</strong><span class="classifier">str</span></dt><dd><p>Organism of interest. Options are athaliana, btaurus, celegans,
+cfamiliaris, dmelanogaster, drerio, ggallus, hsapiens, mmusculus,
+rnorvegicus, scerevisiae, sscrofa, others. Defaults to ‘hsapiens’.</p>
+</dd>
+<dt><strong>sig_method</strong><span class="classifier">str</span></dt><dd><p>Methods to use for identifying the enriched categories. ‘fdr’ means the
+enriched categories will be identified based on FDR threshold and
+‘top’ means the categories will be first ranked based on the FDR and
+then the top most significant categories will be selected. Defaults to
+‘fdr’.</p>
+</dd>
+<dt><strong>sig_value</strong><span class="classifier">numerical</span></dt><dd><p>Threshold for the significance method. Defaults to 0.05.</p>
+</dd>
+<dt><strong>browser</strong><span class="classifier">str</span></dt><dd><p>Browser to use. Supported options are ‘chrome’ (default) and ‘firefox’.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><dl class="simple">
+<dt>ValueError</dt><dd><p>If there is a problem with the browser and/or selenium</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
 </div>
 
 
