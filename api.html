@@ -92,7 +92,7 @@
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installing nimgen</a></li>
 <li class="toctree-l1"><a class="reference internal" href="auto_examples/index.html">Examples</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#module-nimgen">Main API functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-nimgen.expressions">Main functions</a></li>
 </ul>
 </li>
 </ul>
@@ -164,9 +164,56 @@
             
   <div class="section" id="reference">
 <h1>Reference<a class="headerlink" href="#reference" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="module-nimgen">
-<span id="main-api-functions"></span><h2>Main API functions<a class="headerlink" href="#module-nimgen" title="Permalink to this headline">¶</a></h2>
-</div>
+<div class="section" id="module-nimgen.expressions">
+<span id="main-functions"></span><h2>Main functions<a class="headerlink" href="#module-nimgen.expressions" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="nimgen.expressions.get_gene_expression">
+<code class="sig-prename descclassname"><span class="pre">nimgen.expressions.</span></code><code class="sig-name descname"><span class="pre">get_gene_expression</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atlas</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allen_data_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_expressions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_recompute</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">multiple_correction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fdr_bh'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nimgen.expressions.get_gene_expression" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the genes expressed in the atlas that correlate with the
+specified weights.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>weights</strong><span class="classifier">list(float) or np.ndarray or pandas.Series or pandas.DataFrame</span></dt><dd><p>Weights for each ROI in the atlas</p>
+</dd>
+<dt><strong>atlas</strong><span class="classifier">niimg-like object</span></dt><dd><p>A parcellation image in MNI space, where each parcel is identified by a
+unique integer ID.</p>
+</dd>
+<dt><strong>allen_data_dir</strong><span class="classifier">pathlib.Path or string</span></dt><dd><p>Directory where expression data should be downloaded (if it does not
+already exist) / loaded.</p>
+</dd>
+<dt><strong>save_expressions</strong><span class="classifier">bool</span></dt><dd><p>If True (default), the expressions on the atlas will be saved for later
+calls to the function with the same atlas. It will create a file named
+<cite>nimgen_{atlas}_expressions.csv</cite> next to the atlas file.</p>
+</dd>
+<dt><strong>force_recompute</strong><span class="classifier">bool</span></dt><dd><p>If True, disregard the previously saved expressions and recompute the
+gene expressions using abagen. Defaults to False.</p>
+</dd>
+<dt><strong>multiple_correction</strong><span class="classifier">str</span></dt><dd><p>Method to use for the correction for multiple comparisons. Check
+<cite>statsmodels.stats.multitest.mutipletests</cite> for a list of available
+options. Defaults to ‘fdr_bh’</p>
+</dd>
+<dt><strong>alpha</strong><span class="classifier">float</span></dt><dd><p>FWER, family-wise error rate, e.g. 0.1. Defaults to 0.05.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl class="simple">
+<dt><strong>picks</strong><span class="classifier">list(str)</span></dt><dd><p>A list will all the elements from columns that match at least one
+regexp in regexes</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises</dt>
+<dd class="field-odd"><dl class="simple">
+<dt>ValueError</dt><dd><p>If there is a problem with the Atlas and/or the weights.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<span class="target" id="module-nimgen.webgestalt"></span></div>
 </div>
 
 

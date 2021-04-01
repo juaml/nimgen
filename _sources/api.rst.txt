@@ -3,8 +3,11 @@ Reference
 .. include:: links.inc
 
 
-Main API functions
+Main functions
 ^^^^^^^^^^^^^^^^^^
 
-.. automodule:: nimgen
+.. automodule:: nimgen.expressions
+   :members:
+
+.. automodule:: nimgen.webgestalt
    :members:
