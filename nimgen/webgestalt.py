@@ -40,7 +40,7 @@ def webgestalt(genes, enrich_db_category, enrich_db_name, enrich_method='ORA',
     """Set-up an analysis to be performed in webgestalt.
     See http://www.webgestalt.org
 
-    Requires selenium and the browser driver installed. 
+    Requires selenium and the browser driver installed.
     See https://juaml.github.io/nimgen/installation.html
 
     Parameters
