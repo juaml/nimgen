@@ -46,7 +46,7 @@ Check the `abagen` library for more details: https://github.com/rmarkello/abagen
 
 Please get the `normalized microarray data` for all the subjects from here:  https://human.brain-map.org/static/download
 
-Put all of them in a single directory and decompress. The directory should look like as following consisting of the six subjects:
+Put all of them in a single directory and decompress. The directory should have the following structure, consisting of the six subjects and six files per subjects:
 
 ```
 ├── normalized_microarray_donor10021
@@ -57,12 +57,7 @@ Put all of them in a single directory and decompress. The directory should look 
 │   ├── Readme.txt
 │   └── SampleAnnot.csv
 ├── normalized_microarray_donor12876
-│   ├── MicroarrayExpression.csv
-│   ├── Ontology.csv
-│   ├── PACall.csv
-│   ├── Probes.csv
-│   ├── Readme.txt
-│   └── SampleAnnot.csv
+│   ├── ...
 ├── normalized_microarray_donor14380
 │   ├── ...
 ├── normalized_microarray_donor15496
