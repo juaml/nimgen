@@ -14,6 +14,34 @@ cd nimgen
 python setup.py develop
 ```
 
+## Usage
+
+Three components are needed to use the functionality:
+
+```
+# a 3D nifti file containing ROIs labelled as integers
+atlas = './data/Power_5mm.nii'
+# a plain text file containing weights for each of the ROIs (ordered according to the ROI integer in the atlas)
+weights = pd.read_csv('./data/rehoavg.txt', header=None)
+# a directory containing the microarray data (see below)
+allen_data_dir = './data/allen'
+```
+
+Once these are ready you can get the multiple-testing corrected (default BH FDR) P-values and genes as follows:
+
+```
+genes = nimgen.get_gene_expression(
+    weights, atlas, allen_data_dir=allen_data_dir, save_expressions=True)
+print(genes[:10])
+```
+
+The `save_expressions=True` saves the extracted expression values so that they can be reused. Please check the respective functions for more details.
+
+The `examples` directory contains more usage examples.
+
+Check the `abagen` library for more details: https://github.com/rmarkello/abagen
+  
+
 ## Allen Brain Atlas 
 
 Please get the `normalized microarray data` for all the subjects from here:  https://human.brain-map.org/static/download
@@ -58,3 +86,4 @@ Just download the respective file, unzip and place in the users PATH (`/bin` or 
 
 Note for Macos users: 
 Open a Terminal, copy the driver to `/usr/local/bin` and then execute. An error message will appear. Press close or cancel. Open system preferences, security and press the button to allow for the execution. Go to the terminal, execute again. Another warning will appear. Allow.
+
