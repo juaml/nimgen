@@ -21,7 +21,6 @@ Please get the `normalized microarray data` for all the subjects from here:  htt
 Put all of them in a single directory and decompress. The directory should look like as following consisting of the six subjects:
 
 ```
-.
 ├── normalized_microarray_donor10021
 │   ├── MicroarrayExpression.csv
 │   ├── Ontology.csv
@@ -36,9 +35,14 @@ Put all of them in a single directory and decompress. The directory should look 
 │   ├── Probes.csv
 │   ├── Readme.txt
 │   └── SampleAnnot.csv
-.
-.
-.
+├── normalized_microarray_donor14380
+│   ├── ...
+├── normalized_microarray_donor15496
+│   ├── ...
+├── normalized_microarray_donor15697
+│   ├── ...
+└── normalized_microarray_donor9861
+    ├── ...
 ```
 
 You will have to provide this directory to the functions calls that get the gene expression data.
