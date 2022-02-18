@@ -74,9 +74,12 @@ def get_gene_expression(weights, atlas, allen_data_dir=None,
 
     Returns
     -------
-    genes : list(str)
-        A list will all the genes that are expressed in the atlas and correlate
-        with the weights.
+    all_genes : object(DataFrame)
+        An object will all the genes and p-values that are expressed in the 
+        atlas.
+    sign_genes : object(DataFrame)
+        An object will significant genes and p-values that are expressed in the 
+        atlas and correlate with the weights.
 
     Raises
     ------
