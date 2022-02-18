@@ -124,6 +124,11 @@ def get_gene_expression(weights, atlas, allen_data_dir=None,
     pval = exp.apply(
         lambda ser: stats.pearsonr(ser.values, weights.squeeze().values)[1])
 
-    reject, *_ = multipletests(pval, alpha=alpha, method=multiple_correction)
+    reject, pvals_corrected, *_ = multipletests(pval, alpha=alpha, method=multiple_correction)
     genes = pval[reject].index.values.tolist()
-    return genes
+    all_genes = pd.DataFrame({ 'genes': pval.index, 'pval': pval.values, 
+                                'corrected_pval': pvals_corrected}).set_index('genes')
+    sign_genes = all_genes[all_genes.index.isin(genes)]
+    sign_genes.index.name = 'sign_genes'
+    
+    return all_genes, sign_genes
