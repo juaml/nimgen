@@ -30,9 +30,9 @@ allen_data_dir = './data/allen'
 Once these are ready you can get the multiple-testing corrected (default BH FDR) P-values and genes as follows:
 
 ```
-genes = nimgen.get_gene_expression(
+all_genes, sign_genes = nimgen.get_gene_expression(
     weights, atlas, allen_data_dir=allen_data_dir, save_expressions=True)
-print(genes[:10])
+print(sign_genes)
 ```
 
 The `save_expressions=True` saves the extracted expression values so that they can be reused. Please check the respective functions for more details.
