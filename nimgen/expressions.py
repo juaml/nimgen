@@ -41,6 +41,18 @@ def _get_cached_results(atlas):
         exp = pd.read_csv(exp_fname, sep=';')
     return exp
 
+def _multiple_fdr_correction(pval, corr_type):
+
+    reject, pvals_corrected, *_ = multipletests(pval, alpha=0.05, method=corr_type)
+    corr_genes = pval[reject].index.values.tolist()
+
+    all_genes = pd.DataFrame({ 'genes': pval.index, 'pval': pval.values,
+                    'pvals_corrected': pvals_corrected }).set_index('genes')
+    sign_genes = all_genes[all_genes.index.isin(corr_genes)]
+    sign_genes.index.name = 'sign_genes'
+    
+    return sign_genes, all_genes
+
 
 def get_gene_expression(weights, atlas, allen_data_dir=None,
                         save_expressions=True, force_recompute=False,
@@ -75,12 +87,13 @@ def get_gene_expression(weights, atlas, allen_data_dir=None,
     Returns
     -------
     all_genes : object(DataFrame)
-        An object will all the genes and p-values that are expressed in the 
+        An object will all the genes, p-values and r_score that are expressed in the 
         atlas.
-    sign_genes : object(DataFrame)
-        An object will significant genes and p-values that are expressed in the 
+    sign_genes : dict
+        Dictionary with parameters used for the correlation function. Keys:
+        `positive` and `negative`, values: DataFrame object with the calculated
+        significant genes, p-values and r_score that are expressed in the
         atlas and correlate with the weights.
-
     Raises
     ------
     ValueError
@@ -127,11 +140,17 @@ def get_gene_expression(weights, atlas, allen_data_dir=None,
     pval = exp.apply(
         lambda ser: stats.pearsonr(ser.values, weights.squeeze().values)[1])
 
-    reject, pvals_corrected, *_ = multipletests(pval, alpha=alpha, method=multiple_correction)
-    genes = pval[reject].index.values.tolist()
-    all_genes = pd.DataFrame({ 'genes': pval.index, 'pval': pval.values, 
-                                'corrected_pval': pvals_corrected}).set_index('genes')
-    sign_genes = all_genes[all_genes.index.isin(genes)]
-    sign_genes.index.name = 'sign_genes'
+    pearson_result = exp.apply(lambda col: stats.pearsonr (col.values, 
+                     weights.squeeze().values), result_type='expand').T
+    r_score, pval = pearson_result[0], pearson_result[1]
+    sign_genes = {}
+    for corr_type in ['negative', 'positive']:
+        # negative correlation: fdr_by, positive correlation: fdr_bh
+        corr_method = 'fdr_bh' if corr_type == 'positive' else 'fdr_by'
+        sign_genes[corr_type], all_genes = _multiple_fdr_correction(pval,
+                                                                    corr_method)
+        # add r_score column for each method
+        sign_genes[corr_type] = pd.concat([sign_genes[corr_type], r_score], 
+                            join='inner', axis=1).rename(columns={0: 'r_score'})
     
     return all_genes, sign_genes
