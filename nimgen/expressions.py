@@ -124,13 +124,16 @@ def get_gene_expression(weights, atlas, allen_data_dir=None,
     good_rois = ~exp.iloc[:, 0].isna().values
     exp = exp[good_rois]
     weights = weights[good_rois]
-    pval = exp.apply(
-        lambda ser: stats.pearsonr(ser.values, weights.squeeze().values)[1])
+    pearson_result = exp.apply(lambda col: stats.pearsonr (col.values, 
+                            weights.squeeze().values), result_type='expand').T
+    pval, r_score = pearson_result[1], pearson_result[0]
 
     reject, pvals_corrected, *_ = multipletests(pval, alpha=alpha, method=multiple_correction)
     genes = pval[reject].index.values.tolist()
     all_genes = pd.DataFrame({ 'genes': pval.index, 'pval': pval.values, 
-                                'corrected_pval': pvals_corrected}).set_index('genes')
+                    'pvals_corrected': pvals_corrected, 'r_score':r_score}).\
+                    set_index('genes')
+
     sign_genes = all_genes[all_genes.index.isin(genes)]
     sign_genes.index.name = 'sign_genes'
     
