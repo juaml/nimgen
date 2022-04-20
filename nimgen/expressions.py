@@ -5,13 +5,10 @@
 # License: AGPL
 import numpy as np
 import pandas as pd
-
 from pathlib import Path
 import os
-
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
-
 import nibabel as nib
 import abagen
 from .utils import logger
@@ -128,13 +125,16 @@ def get_gene_expression(weights, atlas, allen_data_dir=None,
                             weights.squeeze().values), result_type='expand').T
     pval, r_score = pearson_result[1], pearson_result[0]
 
-    reject, pvals_corrected, *_ = multipletests(pval, alpha=alpha, method=multiple_correction)
-    genes = pval[reject].index.values.tolist()
-    all_genes = pd.DataFrame({ 'genes': pval.index, 'pval': pval.values, 
-                    'pvals_corrected': pvals_corrected, 'r_score':r_score}).\
-                    set_index('genes')
-
-    sign_genes = all_genes[all_genes.index.isin(genes)]
-    sign_genes.index.name = 'sign_genes'
-    
+    all_genes = pd.DataFrame({ 'genes': pval.index, 'pval': pval.values, 'r_score': r_score}).set_index('genes')
+    sign_genes = None
+    if multiple_correction is not None:
+        reject, pvals_corrected, *_ = multipletests(pval, alpha=alpha, method=multiple_correction)
+        all_genes['pvals_corrected'] = pvals_corrected
+        all_genes = all_genes.sort_values(by=["r_score"])    
+        genes = pval[reject].index.values.tolist()
+        sign_genes = all_genes[all_genes.index.isin(genes)]
+        sign_genes.index.name = 'sign_genes'
+    else:
+        sign_genes = all_genes[ all_genes.pval < 0.05 ]
+        
     return all_genes, sign_genes

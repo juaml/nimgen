@@ -6,3 +6,5 @@ import logging
 
 logger = logging.getLogger(name='nimgen')
 logger.setLevel(logging.INFO)
+console = logging.StreamHandler()
+logger.addHandler(console)
