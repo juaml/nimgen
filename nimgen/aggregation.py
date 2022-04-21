@@ -19,7 +19,7 @@ def create_sample_dir(project_dir, parcellation_file):
     if not os.path.isdir(sample_path): os.mkdir(sample_path)
     return sample_path
 
-def get_pvalues_with_agg(atlas_file, marker_file, aggregation_methods, output_dir,allen_data_dir='allen_data', **kwargs):
+def get_pvalues_with_agg(atlas_file, marker_file, aggregation_methods, output_dir, allen_data_dir='allen_data', **kwargs):
     # aggregation methoduna gore ROI sayisi kadar weights dizisi olusturur, onu import eder marker dosyasi gibi
     if not os.path.isdir(output_dir): os.mkdir(output_dir)
     atlas = image.load_img(atlas_file)
@@ -119,11 +119,9 @@ def _get_gmd(atlas_nifti, vbm_nifti, aggregation=None, limits=None):
     if limits is None:
         limits = [0.1, 0.1]
 
-    logger.info("agg_func_params")
     # aggregation function parameters (validity is checked in _get_funcbyname())
     agg_func_params = {"winsorized_mean": {"limits": limits}}
 
-    logger.info("definitions")
     # definitions
     # sort rois to be related to the order of i_roi (and get rid of 0 entry)
     rois = sorted(np.unique(image.get_data(atlas_nifti)))[1:]  # roi numbering

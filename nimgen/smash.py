@@ -31,16 +31,21 @@ def _export_voxel_coordinates(parcellation_file, output_dir):
 
 
 # distance, index, smaps files
-def _parcellation_smash(voxel_coord, voxel_parcel, output_dir, chunck_size, smap, n_jobs, distance_matrix=None, index_matix=None):
-    tmpdir = tempfile.TemporaryDirectory()
-    logger.info(f"tmp_dir: {tmpdir.name}")
-    filenames = {}
+def _generate_surrogate_maps(voxel_coord, voxel_parcel, output_dir, chunck_size, smap, n_jobs, distance_matrix=None, index_matix=None, tmp=None):
+    # tmpdir = tempfile.TemporaryDirectory()
+    
     pc1 = perf_counter()
-    if distance_matrix and index_matix:
-        filenames["D"] = distance_matrix
-        filenames["index"] = index_matix
-    else:
-        filenames = volume(voxel_coord, tmpdir.name, chunk_size=chunck_size)
+    # filenames = {}
+    # if distance_matrix and index_matix:
+    #     filenames["D"] = distance_matrix
+    #     filenames["index"] = index_matix
+    # else:
+    #     filenames = volume(voxel_coord, tmpdir.name, chunk_size=chunck_size)
+    tmpdir = output_dir
+    if tmp:
+        tmpdir = tmp
+    logger.info(f"tmp_dir: {tmp}")
+    filenames = volume(voxel_coord, tmpdir, chunk_size=chunck_size)
 
     pc2 = perf_counter()
     logger.info(f"volume function finished in {(pc2 - pc1) / 60:0.0f} minutes")
@@ -55,7 +60,9 @@ def _parcellation_smash(voxel_coord, voxel_parcel, output_dir, chunck_size, smap
         **kwargs,
     )
     surrogate_maps = gen(n=smap)
-    tmpdir.cleanup()
+    #tmpdir.cleanup()
+    os.remove(os.path.join(tmpdir,'distmat.npy'))
+    os.remove(os.path.join(tmpdir,'index.npy'))
     pc3 = perf_counter()
     logger.info(f"Sampled function finished in {(pc3 - pc2) / 60:0.0f} minutes")
     np.save(os.path.join(output_dir, "smaps.npy"), surrogate_maps)
@@ -78,10 +85,10 @@ def _create_nifti(xyz_arr, ref_parcellation_file, output_filename):
 
 
 # smashed nifti files
-def smashit(parcellation_file, output_dir, chunck_size=1000, smap=10, n_jobs=1):
+def smashit(parcellation_file, output_dir, chunck_size=1000, smap=10, n_jobs=1, tmp=None):
     voxel_coord_file, voxel_parcel_file = _export_voxel_coordinates(parcellation_file, output_dir)
-    surrogate_maps, elapsed_time = _parcellation_smash(voxel_coord_file, voxel_parcel_file, output_dir, chunck_size=chunck_size, smap=smap,
-                       n_jobs=n_jobs)
+    surrogate_maps, elapsed_time = _generate_surrogate_maps(voxel_coord_file, voxel_parcel_file, output_dir, chunck_size=chunck_size, smap=smap,
+                       n_jobs=n_jobs, tmp=tmp)
     smaps = np.load(os.path.join(output_dir, 'smaps.npy'))
     smashed_atlaeses = []
     smashed_atlases_dir = os.path.join(output_dir,'smashed_atlases')
