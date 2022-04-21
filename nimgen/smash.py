@@ -1,13 +1,11 @@
-from os import path
-from black import out
+import os
 import nilearn
 from brainsmash.workbench.geo import volume
 from brainsmash.mapgen.sampled import Sampled
 from time import perf_counter
+import tempfile
 from .expressions import *
 from .utils import logger
-import tempfile
-
 
 # voxel_coordinates, brain_map files
 def _export_voxel_coordinates(parcellation_file, output_dir):
@@ -34,15 +32,15 @@ def _export_voxel_coordinates(parcellation_file, output_dir):
 
 # distance, index, smaps files
 def _parcellation_smash(voxel_coord, voxel_parcel, output_dir, chunck_size, smap, n_jobs, distance_matrix=None, index_matix=None):
-    tmpdirname = tempfile.TemporaryDirectory()
-    logger.info(f"tmp_dir: {tmpdirname}")
+    tmpdir = tempfile.TemporaryDirectory()
+    logger.info(f"tmp_dir: {tmpdir.name}")
     filenames = {}
     pc1 = perf_counter()
     if distance_matrix and index_matix:
         filenames["D"] = distance_matrix
         filenames["index"] = index_matix
     else:
-        filenames = volume(voxel_coord, tmpdirname, chunk_size=chunck_size)
+        filenames = volume(voxel_coord, tmpdir.name, chunk_size=chunck_size)
 
     pc2 = perf_counter()
     logger.info(f"volume function finished in {(pc2 - pc1) / 60:0.0f} minutes")
@@ -57,7 +55,7 @@ def _parcellation_smash(voxel_coord, voxel_parcel, output_dir, chunck_size, smap
         **kwargs,
     )
     surrogate_maps = gen(n=smap)
-    tmpdirname.cleanup()
+    tmpdir.cleanup()
     pc3 = perf_counter()
     logger.info(f"Sampled function finished in {(pc3 - pc2) / 60:0.0f} minutes")
     np.save(os.path.join(output_dir, "smaps.npy"), surrogate_maps)

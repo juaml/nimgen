@@ -19,8 +19,6 @@ def create_sample_dir(project_dir, parcellation_file):
     if not os.path.isdir(sample_path): os.mkdir(sample_path)
     return sample_path
 
-
-
 def get_pvalues_with_agg(atlas_file, marker_file, aggregation_methods, output_dir,allen_data_dir='allen_data', **kwargs):
     # aggregation methoduna gore ROI sayisi kadar weights dizisi olusturur, onu import eder marker dosyasi gibi
     if not os.path.isdir(output_dir): os.mkdir(output_dir)
