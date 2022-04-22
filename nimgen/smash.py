@@ -7,6 +7,29 @@ import tempfile
 from .expressions import *
 from .utils import logger
 
+
+# smashed nifti files
+def smashit(parcellation_file, output_dir, chunck_size=1000, smap=10, n_jobs=1, tmp=None):
+    voxel_coord_file, voxel_parcel_file = _export_voxel_coordinates(parcellation_file, output_dir)
+    surrogate_maps, elapsed_time = _generate_surrogate_maps(voxel_coord_file, voxel_parcel_file, output_dir, chunck_size=chunck_size, smap=smap,
+                       n_jobs=n_jobs, tmp=tmp)
+    smaps = np.load(os.path.join(output_dir, 'smaps.npy'))
+    smashed_atlaeses = []
+    smashed_atlases_dir = os.path.join(output_dir,'smashed_atlases')
+    if not os.path.isdir( smashed_atlases_dir ): os.mkdir(smashed_atlases_dir)
+
+    pc1 = perf_counter()
+    for key, smap in enumerate(smaps):
+        filename = os.path.join(smashed_atlases_dir, f'{key}_smashed.nii')
+        _create_nifti(smap, parcellation_file, filename)
+        smashed_atlaeses.append(filename)
+    
+    pc2 = perf_counter()
+    elapsed_time.loc[len(elapsed_time)] = ['smaps_create_nifti', (pc2 - pc1) / 60]
+
+    return smashed_atlaeses, elapsed_time
+
+
 # voxel_coordinates, brain_map files
 def _export_voxel_coordinates(parcellation_file, output_dir):
     voxel_coord_file = os.path.join(output_dir, "voxel_coordinates.txt")
@@ -45,6 +68,7 @@ def _generate_surrogate_maps(voxel_coord, voxel_parcel, output_dir, chunck_size,
     if tmp:
         tmpdir = tmp
     logger.info(f"tmp_dir: {tmp}")
+    print(f"tmp_dir: {tmp}")
     filenames = volume(voxel_coord, tmpdir, chunk_size=chunck_size)
 
     pc2 = perf_counter()
@@ -83,27 +107,6 @@ def _create_nifti(xyz_arr, ref_parcellation_file, output_filename):
     nii.to_filename(output_filename)
     return nii
 
-
-# smashed nifti files
-def smashit(parcellation_file, output_dir, chunck_size=1000, smap=10, n_jobs=1, tmp=None):
-    voxel_coord_file, voxel_parcel_file = _export_voxel_coordinates(parcellation_file, output_dir)
-    surrogate_maps, elapsed_time = _generate_surrogate_maps(voxel_coord_file, voxel_parcel_file, output_dir, chunck_size=chunck_size, smap=smap,
-                       n_jobs=n_jobs, tmp=tmp)
-    smaps = np.load(os.path.join(output_dir, 'smaps.npy'))
-    smashed_atlaeses = []
-    smashed_atlases_dir = os.path.join(output_dir,'smashed_atlases')
-    if not os.path.isdir( smashed_atlases_dir ): os.mkdir(smashed_atlases_dir)
-
-    pc1 = perf_counter()
-    for key, smap in enumerate(smaps):
-        filename = os.path.join(smashed_atlases_dir, f'{key}_smashed.nii')
-        _create_nifti(smap, parcellation_file, filename)
-        smashed_atlaeses.append(filename)
-    
-    pc2 = perf_counter()
-    elapsed_time.loc[len(elapsed_time)] = ['smaps_create_nifti', (pc2 - pc1) / 60]
-
-    return smashed_atlaeses, elapsed_time
 
 
 def empirical_pval(stat, stat0):
