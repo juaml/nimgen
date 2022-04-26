@@ -9,41 +9,72 @@ from scipy.stats.mstats import winsorize
 from time import perf_counter
 import uuid
 import pathlib
+from joblib import Parallel, delayed
+import multiprocessing
 
 def create_sample_dir(project_dir, parcellation_file):
-    output_dir = os.path.join(project_dir, f'output')
+    output_dir = os.path.join(project_dir, f"output")
     sample_id = uuid.uuid4().hex.upper()[0:6]
     sample_name = "_".join([pathlib.Path(parcellation_file).stem, sample_id])
     sample_path = os.path.join(output_dir, sample_name)
-    if not os.path.isdir(output_dir): os.mkdir(output_dir)
-    if not os.path.isdir(sample_path): os.mkdir(sample_path)
+    if not os.path.isdir(output_dir):
+        os.mkdir(output_dir)
+    if not os.path.isdir(sample_path):
+        os.mkdir(sample_path)
     return sample_path
 
-def get_pvalues(atlas_file, marker_file, aggregation_methods, output_dir, allen_data_dir='allen_data', **kwargs):
+
+def get_pvalues(
+    atlas_file,
+    marker_file,
+    aggregation_methods,
+    output_dir,
+    allen_data_dir="allen_data",
+    **kwargs,
+):
     # aggregation methoduna gore ROI sayisi kadar weights dizisi olusturur, onu import eder marker dosyasi gibi
-    if not os.path.isdir(output_dir): os.mkdir(output_dir)
+    if not os.path.isdir(output_dir):
+        os.mkdir(output_dir)
     atlas = image.load_img(atlas_file)
     marker = image.load_img(marker_file)
-    gmd_aggregated, agg_func_params = _get_gmd(atlas, marker, aggregation=aggregation_methods)
+    gmd_aggregated, agg_func_params = get_gmd(
+        atlas, marker, aggregation=aggregation_methods
+    )
 
-    pc1 = perf_counter()
     all_pvalues = {}
     for agg_name in gmd_aggregated:
         sample_name = f"{slugify(Path(atlas_file).stem)}_{slugify(Path(marker_file).stem)}_{slugify(agg_name)}"
         sample_dir = os.path.join(output_dir, sample_name)
-        if not os.path.isdir(sample_dir): os.mkdir(sample_dir)
-        logger.info(f"save files to: {sample_dir}")
-        pvalues, _ = get_gene_expression(
-            gmd_aggregated[agg_name], atlas_file, allen_data_dir=allen_data_dir,
-            save_expressions=True, multiple_correction=None
+        if not os.path.isdir(sample_dir):
+            os.mkdir(sample_dir)
+        logger.info(f"save files to: {sample_name}")
+        pvalues, sign = get_gene_expression(
+            gmd_aggregated[agg_name],
+            atlas_file,
+            allen_data_dir=allen_data_dir,
+            save_expressions=True,
+            multiple_correction=None,
         )
         pvalues.to_csv(os.path.join(sample_dir, "genes.csv"), sep="\t")
         all_pvalues[agg_name] = pvalues
 
+    return all_pvalues, sign
+
+
+
+def get_pvalues_parallel(atlases, num_cores, elapsed_time, **kwargs):
+    #num_cores = kwargs.get('num_cores', 1)
+    pc1 = perf_counter()
+    smashed_data = Parallel(n_jobs=num_cores)(
+        delayed(get_pvalues)(atlas, **kwargs) for atlas in atlases
+    )
     pc2 = perf_counter()
-    elapsed_time = pd.DataFrame(columns=['function','elapsed'])
-    elapsed_time.loc[len(elapsed_time)] = ['get_gene_expression', (pc2 - pc1) / 60]
-    return all_pvalues, elapsed_time
+    elapsed_time.loc[len(elapsed_time)] = ["parallel.get_pvalues", (pc2 - pc1) / 60]
+    print(elapsed_time)
+    np.save(os.path.join(kwargs['output_dir'], "smashed_data.npy"), smashed_data)
+    np.save(os.path.join(kwargs['output_dir'], "elapsed_time.npy"), elapsed_time)
+    return smashed_data
+
 
 
 def save_significant_genes(sign_genes, output_dir):
@@ -52,15 +83,19 @@ def save_significant_genes(sign_genes, output_dir):
             posneg_genes = sign_genes[sign_genes["r_score"] < 0]
         else:
             posneg_genes = sign_genes[sign_genes["r_score"] > 0]
-        posneg_genes.to_csv(os.path.join(output_dir, f"{posneg}_sign_genes.tsv"), sep="\t")
+        posneg_genes.to_csv(
+            os.path.join(output_dir, f"{posneg}_sign_genes.tsv"), sep="\t"
+        )
 
     sign_genes.to_csv(os.path.join(output_dir, "sign_genes.tsv"), sep="\t")
 
 
-def run_webgestalt(genes_file,
-                   executable_r_file="r/webg.r",
-                   r_path="/usr/local/bin/Rscript",
-                   r_arg="--vanilla"):
+def run_webgestalt(
+    genes_file,
+    executable_r_file="r/webg.r",
+    r_path="/usr/local/bin/Rscript",
+    r_arg="--vanilla",
+):
     p = subprocess.Popen(
         [r_path, r_arg, executable_r_file, genes_file],
         stdin=subprocess.PIPE,
@@ -78,7 +113,7 @@ def run_webgestalt(genes_file,
         raise print(p.returncode, p.args)
 
 
-def _get_gmd(atlas_nifti, vbm_nifti, aggregation=None, limits=None):
+def get_gmd(atlas_nifti, vbm_nifti, aggregation=None, limits=None):
     """
     Constructs a masker based on the input atlas_nifti, applies resampling of
     the atlas if necessary and applies the masker to

@@ -3,8 +3,16 @@
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 # License: AGPL
 import logging
+import json
 
 logger = logging.getLogger(name='nimgen')
 logger.setLevel(logging.INFO)
-console = logging.StreamHandler()
-logger.addHandler(console)
+#console = logging.StreamHandler()
+#logger.addHandler(console)
+logger.propagate = False
+
+
+def save_as_json(data,file):
+    with open('data.txt', 'w') as outfile:
+        json.dump(data, file, sort_keys = True, indent = 4,
+               ensure_ascii = False)
