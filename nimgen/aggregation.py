@@ -24,6 +24,7 @@ def create_sample_dir(project_dir, parcellation_file):
     return sample_path
 
 
+
 def get_pvalues(
     atlas_file,
     marker_file,
@@ -62,17 +63,21 @@ def get_pvalues(
 
 
 
-def get_pvalues_parallel(atlases, num_cores, elapsed_time, **kwargs):
-    #num_cores = kwargs.get('num_cores', 1)
+def get_pvalues_parallel(atlases, num_cores, **kwargs):
+    #kwargs['output_dir'] = os.path.join(kwargs['output_dir'], 'smashed_expressions')    
+    output_dir = kwargs.get('output_dir', 1)
     pc1 = perf_counter()
     smashed_data = Parallel(n_jobs=num_cores)(
         delayed(get_pvalues)(atlas, **kwargs) for atlas in atlases
     )
+    # joblib returns in dict
+    smashed_data = [i[0] for i in smashed_data]
+    smashed_data = [s['mean'] for s in smashed_data]
     pc2 = perf_counter()
-    elapsed_time.loc[len(elapsed_time)] = ["parallel.get_pvalues", (pc2 - pc1) / 60]
+    elapsed_time= ["parallel.get_pvalues", (pc2 - pc1) / 60]
+    np.savetxt(os.path.join(output_dir,'elapsed_time2.txt'), elapsed_time, fmt='%s')
     print(elapsed_time)
     np.save(os.path.join(kwargs['output_dir'], "smashed_data.npy"), smashed_data)
-    np.save(os.path.join(kwargs['output_dir'], "elapsed_time.npy"), elapsed_time)
     return smashed_data
 
 
@@ -96,6 +101,8 @@ def run_webgestalt(
     r_path="/usr/local/bin/Rscript",
     r_arg="--vanilla",
 ):
+    
+    pc1 = perf_counter()
     p = subprocess.Popen(
         [r_path, r_arg, executable_r_file, genes_file],
         stdin=subprocess.PIPE,
@@ -111,6 +118,11 @@ def run_webgestalt(
 
     if p.returncode != 0:
         raise print(p.returncode, p.args)
+
+    pc2 = perf_counter()
+    elapsed_time= ["webgestalt", (pc2 - pc1) / 60]
+    np.savetxt(os.path.join(os.path.dirname(genes_file),'elapsed_time3.txt'), elapsed_time, fmt='%s')
+    print(elapsed_time)
 
 
 def get_gmd(atlas_nifti, vbm_nifti, aggregation=None, limits=None):

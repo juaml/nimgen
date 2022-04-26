@@ -40,8 +40,10 @@ def smash_parcellation(
 
     pc2 = perf_counter()
     elapsed_time.loc[len(elapsed_time)] = ["smaps_create_nifti", (pc2 - pc1) / 60]
+    np.savetxt(os.path.join(output_dir,'elapsed_time1.txt'), elapsed_time, fmt='%s')
+    print(elapsed_time)
 
-    return smashed_atlaeses, elapsed_time
+    return smashed_atlaeses
 
 
 # voxel_coordinates, brain_map files
@@ -143,10 +145,10 @@ def _empirical_pval(stat, stat0):
 
 
 
-def export_significance_genes(reference_data, smashed_data, output_dir, **kwargs):
-    if os.path.isfile(smashed_data):
-        smashed_data = np.load(smashed_data, allow_pickle=True)
+def export_significance_genes(reference_data, smashed_data, output_dir):
 
+    if os.path.isfile( os.path.join(output_dir, smashed_data) ):
+        smashed_data = np.load(os.path.join(output_dir, smashed_data), allow_pickle=True)
     smashed_concat = pd.concat(smashed_data, axis=1).drop(columns=["pval"])
     reference_data.drop(columns=["pval"], inplace=True)
     stat = smashed_concat.T.values
