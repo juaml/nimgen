@@ -62,6 +62,18 @@ def get_pvalues(
     return all_pvalues, sign
 
 
+def get_pvalues_htcondor(smap,marker_file,aggregation_methods,output_dir,**kwargs):
+    pvalues = get_pvalues(
+            smap,
+            marker_file,
+            aggregation_methods,
+            output_dir,
+            allen_data_dir="allen_data",
+            **kwargs,
+            )
+    return pvalues
+
+
 
 def get_pvalues_parallel(atlases, num_cores, **kwargs):
     #kwargs['output_dir'] = os.path.join(kwargs['output_dir'], 'smashed_expressions')    
@@ -77,6 +89,7 @@ def get_pvalues_parallel(atlases, num_cores, **kwargs):
     elapsed_time= ["parallel.get_pvalues", (pc2 - pc1) / 60]
     np.savetxt(os.path.join(output_dir,'elapsed_time2.txt'), elapsed_time, fmt='%s')
     print(elapsed_time)
+    # corr array 
     np.save(os.path.join(kwargs['output_dir'], "smashed_data.npy"), smashed_data)
     return smashed_data
 
