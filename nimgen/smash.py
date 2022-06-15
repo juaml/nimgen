@@ -4,16 +4,46 @@ import nilearn
 from brainsmash.workbench.geo import volume
 from brainsmash.mapgen.sampled import Sampled
 from time import perf_counter
-import tempfile
 from .expressions import *
-from .aggregation import *
 from .utils import logger
+import glob
+from pathlib import Path
+from slugify import slugify
+import subprocess
+from nilearn import image, masking
+from functools import partial
+from scipy.stats.mstats import winsorize
+from os.path import isfile
 
 
-# voxel_coordinates, brain_map files
-def export_voxel_coordinates(parcellation_file, output_dir):
-    voxel_coord_file = os.path.join(output_dir, "voxel_coordinates.txt")
-    voxel_parcel_file = os.path.join(output_dir, "brain_map.txt")
+def export_voxel_coordinates(parcellation_file, output_path):
+    """
+    Extracts XYZ voxel coordinates and parcel numbers from every voxel within an ROI image consisting of ones and zeros based on the parcellation file.
+
+    Parameters
+    ----------
+    parcellation_file : str or os.PathLike
+        Nifti of atlas to use for parcellation.
+    output_path : str or os.PathLike
+        Output path for voxel_coordinates.txt & brain_map.txt files.
+
+    Returns
+    -------
+    voxel_coord_file : str or os.PathLike
+        voxel_coordinate file name (voxel_coordinates.txt).
+    voxel_parcel_file : str or os.PathLike
+        voxel parcel file name (brain_map.txt).
+    """
+
+    logger.info(f"Trying to export voxel coordinates..")
+    voxel_coord_file = os.path.join(output_path, "voxel_coordinates.txt")
+    voxel_parcel_file = os.path.join(output_path, "brain_map.txt")
+
+    # check txt files, if exists return filenames.
+    if isfile(voxel_coord_file) and isfile(voxel_parcel_file):
+        print(f"voxel_coord_file & voxel_parcel_file allready exists.")
+        return voxel_coord_file, voxel_parcel_file
+
     # load parcellation file
     niimg = nilearn.image.load_img(parcellation_file)
     # get image data as a numpy array
@@ -27,77 +57,125 @@ def export_voxel_coordinates(parcellation_file, output_dir):
     # get mm coords
     coords = nilearn.image.coord_transform(idx[0], idx[1], idx[2], niimg.affine)
     coords = np.vstack(coords).T
-
+    # save files as a txt file
     np.savetxt(voxel_coord_file, coords, fmt="%s")
     np.savetxt(voxel_parcel_file, parcels, fmt="%s")
     return voxel_coord_file, voxel_parcel_file
 
 
-# distance, index
-def generate_distance_matrices(
-    voxel_coord,
-    output_dir,
-    chunck_size,
-):
+def generate_distance_matrices(voxel_coordinate_file, chunck_size=1000):
+    """
+    Generates distance matrices for BrainSMASH based on the XYZ voxel coordinates.
+
+    Parameters
+    ----------
+    voxel_coordinate_file : str or os.PathLike
+        Coordinate file contains XYZ voxel coordinates in mm for each voxel.
+    chunck_size : int, default 1000
+        The number of voxels to process per chunk. For N voxels, this will
+        impose a memory burden of N*`chunk_size` per iteration (in contrast to
+        a memory burden of N*N for a single iteration, in the absence of
+        chunking).
+
+    Returns
+    -------
+    dict
+        Keys are 'D' and 'index'; values are absolute paths to the
+        corresponding files on disk. These files are used as inputs to
+        `brainsmash.mapgen.sampled.Sampled`.
+    """
+    sample_path = os.path.dirname(voxel_coordinate_file)
+
+    logger.info(f"Trying to generate distance matrices..")
+    matrix_files = {
+        'D': os.path.join(sample_path, 'distmat.npy'),
+        'index': os.path.join(sample_path, 'index.npy')
+    }
+
+    # check distance_matrix_files, if there isn't any generate.
+    if isfile(matrix_files["D"]) and isfile(matrix_files["index"]):
+        print(f"distance_matrix_files allready exists.")
+        return matrix_files
 
     pc1 = perf_counter()
-    filenames = volume(voxel_coord, output_dir, chunk_size=chunck_size)
+    filenames = volume(voxel_coordinate_file, sample_path, chunk_size=chunck_size)
     pc2 = perf_counter()
     logger.info(f"generate_distance_matrices: {(pc2 - pc1) / 60:0.0f} minutes")
 
     return filenames
 
 
-def generate_surrogate_maps(
-    voxel_parcel_file, distance_matrix_files, n_jobs, surrogate_map_number, output_dir
+def generate_surrogate_map(
+        parcellation_file,
+        sample_path,
+        smap_id
 ):
+    """
+    Randomly generates surrogate maps with matched spatial autocorrelation based on the parcellation file
+    and matrix files. Matrix files should be in the same directory with coordinate files.
+
+    Parameters
+    ----------
+    parcellation_file : str or os.PathLike
+        Nifti of atlas to use for parcellation.
+    sample_path : str or os.PathLike
+        Sample path
+    smap_id : int
+        ID of surrogate maps to randomly generate.
+
+    Returns
+    -------
+    smap_file : str or os.PathLike
+        Surrogate brain map filename.
+    """
+    logger.info(f"Trying to generate surrogate map..")
+    smaps_dir = os.path.join(sample_path, "smaps")
+    smap_file = os.path.join(smaps_dir, f"{smap_id}_smap.nii")
+    if not os.path.isdir(smaps_dir):
+        os.mkdir(smaps_dir)
+
+    if os.path.isfile(smap_file):
+        print(f'{smap_file} allready exits, continue to correlation analysis')
+        return smap_file
+
+    voxel_parcel_file = os.path.join(sample_path, "brain_map.txt")
+    matrix_files = {
+        'D': os.path.join(sample_path, 'distmat.npy'),
+        'index': os.path.join(sample_path, 'index.npy')
+    }
     pc1 = perf_counter()
-    # These are three of the key parameters affecting the variogram fit
-    kwargs = {"ns": 500, "knn": 1500, "pv": 70}
     gen = Sampled(
         x=voxel_parcel_file,
-        D=distance_matrix_files["D"],
-        index=distance_matrix_files["index"],
+        D=matrix_files['D'],
+        index=matrix_files["index"],
         resample=True,
-        n_jobs=n_jobs,
-        **kwargs,
+        n_jobs=1,
     )
-    surrogate_maps = gen(n=surrogate_map_number)
-    if os.path.isfile(distance_matrix_files["D"]):
-        os.remove(distance_matrix_files["D"])
-        os.remove(distance_matrix_files["index"])
-
+    generated_smap = gen(n=1)
     pc2 = perf_counter()
     logger.info(f"generate_surrogate_maps: {(pc2 - pc1) / 60:0.0f} minutes")
-    np.save(os.path.join(output_dir, "surrogate_maps.npy"), surrogate_maps)
-    df = pd.DataFrame(columns=["function", "elapsed"])
-    df.loc[len(df)] = ["generate_surrogate_maps", (pc2 - pc1) / 60]
-    return surrogate_maps
-
-
-# smashed nifti files
-def create_surrogate_nifti_files(parcellation_file, output_dir):
-
-    smaps = np.load(os.path.join(output_dir, "surrogate_maps.npy"))
-    smashed_atlaeses = []
-    smashed_atlases_dir = os.path.join(output_dir, "smashed_atlases")
-    if not os.path.isdir(smashed_atlases_dir):
-        os.mkdir(smashed_atlases_dir)
-
-    pc1 = perf_counter()
-    for key, smap in enumerate(smaps):
-        filename = os.path.join(smashed_atlases_dir, f"{key}_smashed.nii")
-        _create_nifti(smap, parcellation_file, filename)
-        smashed_atlaeses.append(filename)
-    pc2 = perf_counter()
-    logger.info(f"create_surrogate_niftifiles: {(pc2 - pc1) / 60:0.0f} minutes")
-    df = pd.DataFrame(columns=["function", "elapsed"])
-    df.loc[len(df)] = ["generate_surrogate_maps", (pc2 - pc1) / 60]
-
-    return smashed_atlaeses
+    _create_nifti(generated_smap, parcellation_file, smap_file)
+    return smap_file
 
 
 def _create_nifti(xyz_arr, ref_parcellation_file, output_filename):
+    """
+    Creates nifti file based on the XYZ coordinates and reference parcellation file.
+
+    Parameters
+    ----------
+    xyz_arr : list
+        XYZ coordinates of brain map.
+    ref_parcellation_file : str or os.PathLike
+        Filename of reference parcellation file.
+    output_filename : str or os.PathLike
+        New filename for created nifti file.
+
+    Returns
+    -------
+    nii : list
+        Nifti file.
+    """
     niimg = nilearn.image.load_img(ref_parcellation_file)
     data = niimg.get_fdata()
     idx = np.where(data > 0)
@@ -110,33 +188,375 @@ def _create_nifti(xyz_arr, ref_parcellation_file, output_filename):
 
 def _empirical_pval(stat, stat0):
     """
-    stat:A vector of calculated test statistics.
-    stat0:A vector or matrix of simulated or data-resampled null test statistics.
+    Calculates empirical pvalue based on the observed (surrogate maps) and expected (reference map) correlation scores.
+
+    Parameters
+    ----------
+    stat: numpy.array or list
+        A vector of calculated test statistics.
+    stat0: numpy.array or list
+        A vector or matrix of simulated or data-resampled null test statistics.
+
+    Returns
+    -------
+    pvalues : numpy.array
+        Calculated empirical pvalues.
     """
+
+    logger.info(f"Empirical pvalue calculation..")
     check = np.sum(np.abs(stat) > np.abs(stat0), axis=0)
     pvalues = (check + 1) / (len(stat) + 1)
     return pvalues
 
 
-def export_significance_genes(reference_data, smashed_data, output_dir):
+def export_significant_genes(sample_path, parcel_file, marker_file):
+    """
+    Searchs .csv files in sample directory, concats all gene correlation scores of surrogate maps.
+    Exports significant genes based on the all correlation scores for each surrogate map and reference map score.
+    Applies FDR correction and returns significant genes.
+    Creates genes.txt and genes.tsv files based on the significant genes.
 
-    if os.path.isfile(os.path.join(output_dir, smashed_data)):
-        smashed_data = np.load(
-            os.path.join(output_dir, smashed_data), allow_pickle=True
-        )
+    Parameters
+    ----------
+    sample_path : str or os.PathLike
+        Sample path created especially for each parcellation file and contains intermediate files such as
+        distmat.npy, index.npy, brain_map.txt, voxel_coordinates.txt, genes.txt.
+    parcel_file : str or os.PathLike
+        Nifti of atlas to use for parcellation.
+    marker_file : str or os.PathLike
+        Nifti of voxel based morphometry as e.g. outputted by CAT. Extracts (and returns) measures of region-wise
+        gray matter density (GMD). Aggregtaion method is mean.
+
+    Returns
+    -------
+    rejected : list
+        FDR corrected significant gene list.
+    """
+    logger.info(f"Trying to export significant genes..")
+    smap_corr_files = glob.glob(
+        os.path.join(sample_path, "corr_scores", "*.csv")
+    )
+
+    smashed_data = []
+    for f in smap_corr_files:
+        smashed_data.append(pd.read_csv(f, sep="\t", index_col=0))
     smashed_concat = pd.concat(smashed_data, axis=1).drop(columns=["pval"])
+
+    reference_data, _ = get_corr_scores(parcel_file, marker_file, sample_path, keep_files=False)
     reference_data.drop(columns=["pval"], inplace=True)
     stat = smashed_concat.T.values
     stat0 = reference_data.T.values
     empirical_pval = _empirical_pval(stat, stat0)
-    df = pd.DataFrame(
-        {"genes": reference_data.index, "pval": empirical_pval}
-    ).set_index("genes")
+    df = pd.DataFrame({"genes": reference_data.index, "pval": empirical_pval}).set_index("genes")
     reject, corrected, *_ = multipletests(
         df["pval"], alpha=0.05, method="fdr_bh", is_sorted=False, returnsorted=False
     )
     df["fdr"] = corrected
     df.drop(columns=["pval"], inplace=True)
-    np.savetxt(os.path.join(output_dir, "genes.txt"), df.index, fmt="%s")
-    df.to_csv(os.path.join(output_dir, "genes.tsv"), sep="\t")
-    return df[reject]
+    rejected = df[reject]
+    np.savetxt(os.path.join(sample_path, "genes.txt"), rejected.index, fmt="%s")
+    rejected.to_csv(os.path.join(sample_path, "genes.tsv"), sep="\t")
+
+    return rejected
+
+
+def create_sample_path(project_dir, parcellation_file):
+    """
+    Creates sample directory based on the given parcellation file in the project directory.
+
+    Parameters
+    ----------
+    project_dir : str or os.PathLike
+        Root project directory. Contains data, library, project folders.
+    parcellation_file : str or os.PathLike
+        Nifti of atlas to use for parcellation.
+    Returns
+    -------
+    sample_path : os.PathLike
+        Created sample path name.
+    """
+    parcellation_name = Path(parcellation_file).stem
+    sample_path = os.path.join(project_dir, 'project', 'intermediate', parcellation_name)
+    smaps_dir = os.path.join(sample_path, 'smaps')
+    corr_scores_dir = os.path.join(sample_path, 'corr_scores')
+    if not os.path.isdir(smaps_dir): os.makedirs(smaps_dir)
+    if not os.path.isdir(corr_scores_dir): os.makedirs(corr_scores_dir)
+    logger.info(f"Sample path created: {sample_path}")
+    return sample_path
+
+
+def get_corr_scores(
+        parcel_file,
+        marker_file,
+        sample_path,
+        keep_files=True,
+        aggregation_methods=['mean'],
+):
+    """
+    Fetchs gene expression data from Allen Human Brain Atlas based on the parcellation file, conducts correlation
+    analysis between gene expression and markers. Exports r_score and p_value of each gene to csv file.
+
+    Parameters
+    ----------
+    parcel_file : str or os.PathLike
+        Nifti of atlas to use for parcellation.
+    marker_file : str or os.PathLike
+        Nifti of voxel based morphometry as e.g. outputted by CAT. Extracts (and returns) measures of region-wise
+        gray matter density (GMD). Aggregtaion method is mean.
+    sample_path : str or os.PathLike
+        Sample path created especially for each parcellation file and contains intermediate files such as
+        distmat.npy, index.npy, brain_map.txt, voxel_coordinates.txt, genes.txt.
+    keep_files : bool
+        It should be set to True if the results wanted to be saved
+    aggregation_methods : list, default = mean
+        List with aggregation methods the corresponding array with the calculated GMD based on the provided atlas.
+    Returns
+    -------
+    dict : corr_scores, significant_genes
+        Correlation score of all genes
+    """
+
+    allen_data_dir = os.path.join(sample_path, '../../../data/allen_data')
+
+    atlas = image.load_img(parcel_file)
+    marker = image.load_img(marker_file)
+    gmd_aggregated, agg_func_params = get_gmd(
+        atlas, marker, aggregation=aggregation_methods
+    )
+
+    corr_path = os.path.join(sample_path, 'corr_scores')
+    if not os.path.isdir(corr_path):
+        os.mkdir(corr_path)
+
+    for agg_name in gmd_aggregated:
+        corr_scores, significant_genes = get_gene_expression(
+            gmd_aggregated[agg_name],
+            parcel_file,
+            allen_data_dir=allen_data_dir,
+            save_expressions=True,
+            multiple_correction=None,
+        )
+        if keep_files:
+            corr_filename = f"{slugify(Path(marker_file).stem)}_{slugify(Path(parcel_file).stem)}_{slugify(agg_name)}.csv"
+            corr_filepath = os.path.join(corr_path, corr_filename)
+            corr_scores.to_csv(corr_filepath, sep="\t")
+
+    return corr_scores, significant_genes
+
+
+def run_webgestalt(
+        genes_file='genes.txt',
+        r_path='/usr/local/bin/Rscript',
+        r_arg='--vanilla',
+        r_exec='library/r_script/webg.r',
+):
+    """
+    Runs Webgestalt R package to conduct enrichment analysis.
+
+    Parameters
+    ----------
+    genes_file : str or os.PathLike
+        Significant gene list file. Should be txt.
+    r_path : str or os.PathLike
+        Installed R script path.
+    r_arg : str
+        Argument for running script in command line.
+    r_exec : str or os.PathLike
+        R script file for gene set enrichment analysis.
+
+    Returns
+    -------
+    Creates gene enrichment analysis report.
+    """
+
+    logger.info(f"Gene enrichment analysis [webgestalt]..")
+
+    if os.stat(genes_file).st_size == 0:
+        logger.info(f"genes.txt file is empty.")
+        return False
+
+    pc1 = perf_counter()
+    p = subprocess.Popen(
+        [r_path, r_arg, r_exec, genes_file],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        bufsize=1,
+        universal_newlines=True,
+    )
+
+    for line in p.stdout:
+        print(line, end="")  # process line here
+    p.wait()
+
+    if p.returncode != 0:
+        # raise ValueError(p.returncode, p.args)
+        print(p.returncode, p.args)
+
+    if p.returncode == 0:
+        print(f"command {p.args} succeeded")
+    elif p.returncode <= 125:
+        print(f"command failed, exit-code={p.returncode} error: {str(p.stderr)}")
+    elif p.returncode == 127:
+        print(f"program not found  {str(p.stderr)}")
+    else:
+        pass
+
+    pc2 = perf_counter()
+    elapsed_time = ["webgestalt time elapsed", (pc2 - pc1) / 60]
+    print(elapsed_time)
+
+
+def get_gmd(atlas_nifti, vbm_nifti, aggregation=None, limits=None):
+    """
+    Constructs a masker based on the input atlas_nifti, applies resampling of
+    the atlas if necessary and applies the masker to
+    the vbm_nifti to extract (and return) measures of region-wise gray matter
+    density (GMD). So far the aggregtaion methods "winsorized mean", "mean" and
+    "std" are supported.
+
+    Parameters
+    ----------
+    atlas_nifti : niimg-like object
+        Nifti of atlas to use for parcellation.
+    vbm_nifti: niimg-like object
+        Nifti of voxel based morphometry as e.g. outputted by CAT.
+    aggregation: list
+        List with strings of aggregation methods to apply. Defaults to
+        aggregation = ['winsorized_mean', 'mean', 'std'].
+    limits: array
+        Array with lower and upper limit for the calculation of the winsorized
+        mean. Only needed when 'winsorized_mean' was specified
+        in aggregation. If wasn't specified defaults to [0.1, 0.1].
+
+    Returns
+    -------
+    gmd_aggregated : dict
+        Dictionary with keys being each of the chosen aggregation methods
+        and values the corresponding array with the calculated GMD based on the
+        provided atlas. The array therefore as the shape of the chosen number
+        of ROIs (granularity).
+    agg_func_params: dict
+        Dictionary with parameters used for the aggregation function. Keys:
+        respective aggregation function, values: dict with responding
+        parameters
+    """
+
+    # defaults (validity is checked in _get_funcbyname())
+    if aggregation is None:  # Don't put mutables as defaults, use None instead
+        aggregation = ["winsorized_mean", "mean", "std", "median"]
+    if limits is None:
+        limits = [0.1, 0.1]
+
+    # aggregation function parameters (validity is checked in _get_funcbyname())
+    agg_func_params = {"winsorized_mean": {"limits": limits}}
+
+    # definitions
+    # sort rois to be related to the order of i_roi (and get rid of 0 entry)
+    rois = sorted(np.unique(image.get_data(atlas_nifti)))[1:]  # roi numbering
+    n_rois = len(rois)  # granularity
+    gmd_aggregated = {x: np.ones(shape=(n_rois)) * np.nan for x in aggregation}
+
+    # resample atlas if needed
+    if not atlas_nifti.shape == vbm_nifti.shape:
+        atlas_nifti = image.resample_to_img(
+            atlas_nifti, vbm_nifti, interpolation="nearest"
+        )
+        logger.info("Atlas nifti was resampled to resolution of VBM nifti.")
+
+    logger.info("make masker and apply")
+
+    # make masker and apply
+    for i_roi, roi in enumerate(rois):
+        mask = image.math_img(f"img=={roi}", img=atlas_nifti)
+        gmd = masking.apply_mask(imgs=vbm_nifti, mask_img=mask)  # gmd per roi
+        # logger.info(f'Mask applied for roi {roi}.')
+        # aggregate (for all aggregation options in list)
+        for agg_name in aggregation:
+            # logger.info(f'Aggregate GMD in roi {roi} using {agg_name}.')
+            agg_func = _get_funcbyname(agg_name, agg_func_params.get(agg_name, None))
+            gmd_aggregated[agg_name][i_roi] = agg_func(gmd)
+    logger.info(f"{aggregation} was computed for all {n_rois} ROIs.\n")
+
+    return gmd_aggregated, agg_func_params
+
+
+def _get_funcbyname(name, func_params):
+    """
+    Helper function to generically apply any function. Here used to apply
+    different aggregation functions for extraction of gray matter density (GMD).
+
+    Parameters
+    ----------
+    name : str
+        Name to identify the function. Currently supported names and
+        corresponding functions are:
+        'winsorized_mean' -> scipy.stats.mstats.winsorize
+        'mean' -> np.mean
+        'std' -> np.std
+
+    func_params : dict
+        Dictionary containing functions that need further parameter
+        specifications. Keys are the function and values are dictionaries
+        with the parameter specifications.
+        E.g. 'winsorized_mean': func_params = {'limits': [0.1, 0.1]}
+
+    Returns
+    -------
+    respective function with inputted (partial) parameters.
+    """
+
+    # check validity of names
+    _valid_func_names = {"winsorized_mean", "mean", "std"}
+
+    # apply functions
+    if name == "winsorized_mean":
+        # check validity of func_params
+        limits = func_params.get("limits")
+        if all((lim >= 0.0 and lim <= 1) for lim in limits):
+            logger.info(f"Limits for winsorized mean are set to {limits}.")
+        else:
+            raise_error("Limits for the winsorized mean must be between 0 and 1.")
+        # partially interpret func_params
+        return partial(winsorized_mean, **func_params)
+    if name == "mean":
+        return np.mean  # No func_params
+    if name == "std":
+        return np.std
+    if name == "median":
+        return np.median
+
+    else:
+        raise_error(
+            f"Function {name} unknown. Please provide any of " f"{_valid_func_names}"
+        )
+
+
+def winsorized_mean(data, axis=None, **win_params):
+    """
+    Helper function to chain winsorization and mean to compute winsorized
+    mean.
+
+    Parameters
+    ----------
+    data : array
+        Data to calculate winsorized mean on.
+    win_params : dict
+        Dictionary containing the keyword arguments for the winsorize function.
+        E.g. {'limits': [0.1, 0.1]}
+
+    Returns
+    -------
+    Winsorized mean of the inputted data with the winsorize settings applied
+    as specified in win_params.
+    """
+
+    win_dat = winsorize(data, axis=axis, **win_params)
+    win_mean = win_dat.mean(axis=axis)
+
+    return win_mean
+
+
+def raise_error(error):
+    logger.error(error)
+    raise
