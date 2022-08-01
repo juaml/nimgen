@@ -40,4 +40,6 @@ setuptools.setup(
                       'pandas>=1.1.2',
                       'abagen'],
     python_requires='>=3.6',
+    package_data={'': ['*.r', '*.R']},
+    include_package_data=True,
 )
