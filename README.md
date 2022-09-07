@@ -2,9 +2,17 @@
 
 ## Requirements:
 
-* pandas
 * abagen
-* selenium (only for webgestalt)
+* brainsmash
+* nibabel
+* nilearn
+* pandas
+* numpy
+* pingouin
+* scikit_learn
+* scipy
+* statsmodels
+
 
 ## Installing
 
