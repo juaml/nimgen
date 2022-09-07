@@ -1,19 +1,24 @@
 import os
+from os.path import isfile
+from pathlib import Path
+import subprocess
+import glob
+from time import perf_counter
+
 import nilearn
 from brainsmash.workbench.geo import volume
 from brainsmash.mapgen.sampled import Sampled
-from .utils import logger
-import glob
-from pathlib import Path
-import subprocess
 from nilearn import image, masking
+
 from functools import partial
 from scipy.stats.mstats import winsorize
-from os.path import isfile
+from statsmodels.stats.multitest import multipletests
 import numpy as np
 import pandas as pd
+
 from .expressions import get_gene_expression
-from time import perf_counter
+from .utils import logger
+
 
 def r_script_file():
     """
@@ -194,7 +199,9 @@ def generate_distance_matrices(
     return filenames
 
 
-def generate_surrogate_map(parcellation_file, marker_file, smap_id):
+def generate_surrogate_map(
+    parcellation_file, marker_file, smap_id, project_path
+):
     """
     Randomly generates surrogate maps with matched spatial autocorrelation
     based on the parcellation file
@@ -219,7 +226,7 @@ def generate_surrogate_map(parcellation_file, marker_file, smap_id):
     """
 
     _, _, parcellation_path = create_sample_path(
-        parcellation_file, marker_file, create=True)
+        parcellation_file, marker_file, project_path, create=True)
 
     logger.info(f"Trying to generate surrogate map..")
     smaps_dir = os.path.join(parcellation_path, "smaps")
@@ -339,7 +346,8 @@ def get_corr_scores(
         If PCA is disabled and partial_correlation is enabled,
         custom_covariates should be defined.
     is_surrogate : bool, default = True
-        If given parcellation file is surrogate map, this option should be True.
+        If given parcellation file is surrogate map, this option should be
+        True.
     allen_data_dir : str or os.PathLike
         Gene expression data directory for Allen Human Brain Atlas
     aggregation_methods : list, default = mean
@@ -633,7 +641,8 @@ def get_gmd(atlas, vbm, aggregation=None, limits=None):
 def _get_funcbyname(name, func_params):
     """
     Helper function to generically apply any function. Here used to apply
-    different aggregation functions for extraction of gray matter density (GMD).
+    different aggregation functions for extraction of gray matter density
+    (GMD).
 
     Parameters
     ----------
