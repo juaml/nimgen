@@ -45,6 +45,9 @@ def create_sample_path(
         Nifti of voxel based morphometry as e.g. outputted by CAT. Extracts
         (and returns) measures of region-wise gray matter density (GMD).
         Aggregation method is mean.
+    project_path : str or os.PathLike
+        path to project directory, in which the input/output folders should be
+        available
     create : bool
         If create is False, function will return only abspath without creating
         directories.
@@ -142,9 +145,11 @@ def export_voxel_coordinates(parcellation_file, marker_file):
 
 
 def generate_distance_matrices(
-        parcellation_file,
-        marker_file,
-        chunck_size=1000):
+    parcellation_file,
+    marker_file,
+    project_path,
+    chunck_size=1000,
+):
     """
     Generates distance matrices for BrainSMASH based on the XYZ voxel
     coordinates.
@@ -157,6 +162,9 @@ def generate_distance_matrices(
         Nifti of voxel based morphometry as e.g. outputted by CAT.
         Extracts (and returns) measures of region-wise gray matter density
         (GMD). Aggregation method is mean.
+    project_path : str or os.PathLike
+        path to project directory, in which the input/output folders should be
+        available.
     chunck_size : int, default 1000
         The number of voxels to process per chunk. For N voxels, this will
         impose a memory burden of N*`chunk_size` per iteration (in contrast to
@@ -172,7 +180,8 @@ def generate_distance_matrices(
     """
 
     _, _, parcellation_path = create_sample_path(
-        parcellation_file, marker_file)
+        parcellation_file, marker_file, project_path
+    )
 
     voxel_coordinate_file = os.path.join(
         parcellation_path, 'voxel_coordinates.txt')
@@ -218,6 +227,9 @@ def generate_surrogate_map(
         (GMD). Aggregation method is mean.
     smap_id : int
         ID of surrogate maps to randomly generate.
+    project_path : str or os.PathLike
+        path to project directory, in which the input/output folders should be
+        available
 
     Returns
     -------
@@ -315,7 +327,7 @@ def get_corr_scores(
     project_path,
     partial_correlation=False,
     perform_pca=False,
-    n_pca_comp=0,
+    n_pca_comp=None,
     custom_covariates_df=None,
     is_surrogate=True,
     allen_data_dir='allen_data',
@@ -335,6 +347,9 @@ def get_corr_scores(
         Nifti of voxel based morphometry as e.g. outputted by CAT. Extracts
         (and returns) measures of region-wise gray matter density (GMD).
         Aggregation method is mean.
+    project_path : str or os.PathLike
+        path to project directory, in which the input/output folders should be
+        available
     partial_correlation : bool, default = False
         Applies partial correlation for PCA covariates. Works with PCA.
         https://pingouin-stats.org/generated/pingouin.partial_corr.html
@@ -376,6 +391,16 @@ def get_corr_scores(
         parcellation_file, marker_file, aggregation=aggregation_methods
     )
 
+    perform_pca = False
+    if n_pca_comp is None:
+        perform_pca = False
+        pca_dict = None
+    else:
+        assert isinstance(n_pca_comp, int), "n_pca_comp should be int or None!"
+        assert n_pca_comp > 0, "n_pca_comp should be None or greater than 0!"
+        perform_pca = True
+        pca_dict = {"n_components": n_pca_comp}
+
     # corr analysis
     corr_scores, significant_genes, pca_components = get_gene_expression(
         gmd_aggregated['mean'],
@@ -385,8 +410,8 @@ def get_corr_scores(
         correlation_method='spearman',
         alpha=0.05,
         partial_correlation=partial_correlation,
-        perform_pca=n_pca_comp is None and False or True,
-        pca_dict=n_pca_comp == 0 and None or {"n_components": int(n_pca_comp)},
+        perform_pca=perform_pca,
+        pca_dict=pca_dict,
         custom_covariates_df=custom_covariates_df,
     )
 
@@ -396,12 +421,16 @@ def get_corr_scores(
             os.path.join(
                 output_path,
                 'smap_corr_scores',
-                f'{Path(parcellation_file).stem.split(".")[0]}.csv'
+                f'{Path(parcellation_file).stem.split(".")[0]}.tsv'
             ), sep="\t"
         )
 
     # If PCA is enabled, save components and corr_scores for original
     # parcellation
+    head, tail = os.path.split(parcellation_file)
+    if not os.path.isfile(f"{output_path}/{tail}"):
+        os.system(f"cp {parcellation_file} {output_path}/.")
+
     if perform_pca:
         pca_covariates_dir = os.path.join(
             output_path, 'pca_covariates', f'pca_{n_pca_comp}')
@@ -409,25 +438,22 @@ def get_corr_scores(
             os.makedirs(pca_covariates_dir)
 
         corr_scores.to_csv(
-            os.path.join(
-                pca_covariates_dir,
-                f'corr_scores.csv'),
-            sep="\t")
+            os.path.join(pca_covariates_dir, f'corr_scores.tsv'), sep="\t"
+        )
         significant_genes.to_csv(
             os.path.join(
                 pca_covariates_dir,
-                f'significant_genes.csv'),
+                f'significant_genes.tsv'),
             sep="\t")
         for label, comp in pca_components.items():
             comp.to_filename(
-                os.path.join(
-                    pca_covariates_dir,
-                    f'{label}.nii.gz'))
+                os.path.join(pca_covariates_dir, f'{label}.nii.gz')
+            )
 
     return corr_scores, significant_genes, pca_components
 
 
-def export_significant_genes(parcellation_file, marker_file):
+def export_significant_genes(parcellation_file, marker_file, project_path):
     """
     Searches .csv files in output directory, concats all gene correlation
     scores of surrogate maps.
@@ -444,6 +470,9 @@ def export_significant_genes(parcellation_file, marker_file):
         Nifti of voxel based morphometry as e.g. outputted by CAT. Extracts
         (and returns) measures of region-wise
         gray matter density (GMD). Aggregation method is mean.
+    project_path : str or os.PathLike
+        path to project directory, in which the input/output folders should be
+        available
 
     Returns
     -------
@@ -451,29 +480,40 @@ def export_significant_genes(parcellation_file, marker_file):
         FDR corrected significant gene list.
     """
 
-    _, output_path, _ = create_sample_path(parcellation_file, marker_file)
+    _, output_path, _ = create_sample_path(
+        parcellation_file, marker_file, project_path
+    )
 
     # find all correllation csv files
     logger.info(f"Trying to import significant genes..")
     smap_corr_files = glob.glob(
-        os.path.join(output_path, "smap_corr_scores", "*.csv")
+        os.path.join(output_path, "smap_corr_scores", "*.tsv")
     )
+
     # read, concat, delete p-val column from all csv
     smashed_data = []
     for f in smap_corr_files:
         smashed_data.append(pd.read_csv(f, sep="\t", index_col=0))
     smashed_concat = pd.concat(smashed_data, axis=1).drop(columns=["pval"])
+
     # get corr score for original atlas
     reference_data, _, _ = get_corr_scores(
-        parcellation_file, marker_file, is_surrogate=False, save_scores=False
+        parcellation_file, marker_file, project_path,
+        is_surrogate=False, save_scores=False
     )
     reference_data.drop(columns=["pval"], inplace=True)
+
     # apply empirical p-value formula
     stat = smashed_concat.T.values
     stat0 = reference_data.T.values
     empirical_pval = _empirical_pval(stat, stat0)
-    df = pd.DataFrame({"genes": reference_data.index,
-                       "pval": empirical_pval}).set_index("genes")
+    df = pd.DataFrame(
+        {
+            "genes": reference_data.index,
+            "pval": empirical_pval
+        }
+    ).set_index("genes")
+
     # FDR correction
     reject, corrected, *_ = multipletests(
         df["pval"], alpha=0.05, method="fdr_bh",
