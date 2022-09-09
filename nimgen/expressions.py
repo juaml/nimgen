@@ -94,14 +94,45 @@ def covariates_to_nifti(parcellation, covariates_df):
     covariate_niftis = {}
     for covariate_label, covariate in covariates_df.items():
         null_mat = np.zeros(parcellation_array.shape)
-        null_mat[parcellation_array == 0] = np.nan
+        null_mat[parcellation_array == 0] = -20000
+        marker_min = np.min(covariate)
+        marker_max = np.max(covariate)
         for label, value in covariate.iteritems():
             null_mat[parcellation_array == label + 1] = value
 
-        covariate_niftis[covariate_label] = image.new_img_like(
-            parcellation, null_mat)
+        pc_nii = image.new_img_like(
+            parcellation, null_mat
+        )
+        pc_nii.header["cal_min"] = marker_min
+        pc_nii.header["cal_max"] = marker_max
+        covariate_niftis[covariate_label] = pc_nii
 
     return covariate_niftis
+
+
+def _read_sign_genes(sign_genes):
+    if isinstance(sign_genes, pd.DataFrame):
+        sign_genes = sign_genes.index
+    elif not isinstance(sign_genes, pd.DataFrame):
+        _, ext = os.path.splitext(sign_genes)
+        if ext in [".csv", ".tsv"]:
+            extensions = {".csv": ",", ".tsv": "\t"}
+            sign_genes = pd.read_csv(
+                sign_genes,
+                header=None,
+                index_col=0,
+                dtype=str,
+                sep=extensions[ext]
+            ).index
+        elif ext in [".txt"]:
+            sign_genes = list(np.loadtxt(sign_genes, dtype=str))
+        else:
+            raise ValueError(
+                "'sign_genes' should be a pd.DataFrame,"
+                " .csv/.tsv or .txt file!"
+            )
+
+    return list(sign_genes)
 
 
 def correlated_gene_expression(parcellation, sign_genes, metric="spearman"):
@@ -114,8 +145,15 @@ def correlated_gene_expression(parcellation, sign_genes, metric="spearman"):
     parcellation : niimg-like object
         A parcellation image in MNI space, where each parcel is identified by a
         unique integer ID.
-    sign_genes : pandas.DataFrame
+    sign_genes : pandas.DataFrame, or path to .csv, .tsv, or text file.
+        if it's a pd.DataFrame, the index should contain names of genes,
+        if its a csv or tsv file, the first column should contain names of
+        genes,
+        if its a txt file, it should simply be a column of the gene names
         Significant gene list.
+
+        alternatively this can be the string "all" meaning all genes will be
+        included
 
     Returns
     -------
@@ -123,14 +161,23 @@ def correlated_gene_expression(parcellation, sign_genes, metric="spearman"):
         A dataframe (ROIxROI matrix) contains correlation score for each ROI.
     """
     exp_with_nans = _get_cached_results(parcellation)
-    if not isinstance(sign_genes, pd.DataFrame):
-        sign_genes = pd.read_csv(
-            sign_genes,
-            header=None,
-            index_col=0,
-            dtype=str)
+    if isinstance(sign_genes, str):
+        if sign_genes in ["all"]:
+            sign_genes_expression = exp_with_nans
+        else:
+            raise ValueError("if 'sign_genes' is a str it should be 'all'!")
+    else:
+        sign_genes = _read_sign_genes(sign_genes)
 
-    sign_genes_expression = exp_with_nans[sign_genes.index]
+        for g in sign_genes:
+            assert g in exp_with_nans.columns, (
+                f"{g} not in the gene expression data set!"
+                "Make sure significant genes are provided in "
+                "the correct format!"
+            )
+
+        sign_genes_expression = exp_with_nans[sign_genes]
+
     local_exp = sign_genes_expression.T.copy()
 
     return local_exp.corr(method=metric)
@@ -149,6 +196,16 @@ def gene_coexpression(parcellation, sign_genes, metric="spearman"):
     sign_genes : pandas.DataFrame
         Significant gene list.
 
+        if it's a pd.DataFrame, the index should contain names of genes,
+        if its a csv or tsv file, the first column should contain names of
+        genes,
+        if its a txt file, it should simply be a column of the gene names
+        Significant gene list.
+
+        alternatively this can be the string "all" meaning all genes will be
+        included
+
+
     Returns
     -------
     pandas.DataFrame
@@ -156,13 +213,23 @@ def gene_coexpression(parcellation, sign_genes, metric="spearman"):
         gene.
     """
     exp_with_nans = _get_cached_results(parcellation)
-    if not isinstance(sign_genes, pd.DataFrame):
-        sign_genes = pd.read_csv(
-            sign_genes,
-            header=None,
-            index_col=0,
-            dtype=str)
-    sign_genes_expression = exp_with_nans[sign_genes.index]
+    if isinstance(sign_genes, str):
+        if sign_genes in ["all"]:
+            sign_genes_expression = exp_with_nans
+        else:
+            raise ValueError("if 'sign_genes' is a str it should be 'all'!")
+    else:
+        sign_genes = _read_sign_genes(sign_genes)
+
+        for g in sign_genes:
+            assert g in exp_with_nans.columns, (
+                f"{g} not in the gene expression data set!"
+                "Make sure significant genes are provided in "
+                "the correct format!"
+            )
+
+        sign_genes_expression = exp_with_nans[sign_genes]
+
     local_exp = sign_genes_expression.copy()
     return local_exp.corr(method=metric)
 

@@ -13,7 +13,7 @@ logger.propagate = False
 
 
 def save_as_json(data, file):
-    with open('data.txt', 'w') as outfile:
+    with open('data.txt', 'w'):
         json.dump(data, file, sort_keys=True, indent=4,
                   ensure_ascii=False)
 
