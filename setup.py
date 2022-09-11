@@ -15,6 +15,9 @@ setuptools.setup(
     author_email='sami.hamdan@fz-juelich.de',
     description='FZJ AML NIMGEN Library ',
     long_description=long_description,
+    entry_points={
+        "console_scripts": ["nimgen = nimgen.nimgen:main"]
+    },
     long_description_content_type='text/markdown',
     url=URL,
     download_url=DOWNLOAD_URL,
