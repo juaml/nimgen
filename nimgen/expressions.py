@@ -437,6 +437,6 @@ def get_gene_expression(
         {"genes": pval.index, "pval": pval.values, "r_score": r_score}
     ).set_index("genes")
 
-    sign_genes = all_genes[all_genes.pval < 0.05]
+    sign_genes = all_genes[all_genes.pval < alpha]
 
     return all_genes, sign_genes, covariates_nifti

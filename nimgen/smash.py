@@ -325,6 +325,9 @@ def get_corr_scores(
     parcellation_file,
     marker_file,
     project_path,
+    output_path,
+    correlation_method="spearman",
+    alpha=0.05,
     partial_correlation=False,
     perform_pca=False,
     n_pca_comp=None,
@@ -350,6 +353,11 @@ def get_corr_scores(
     project_path : str or os.PathLike
         path to project directory, in which the input/output folders should be
         available
+    correlation_method : str
+        'spearman' or 'pearson', kind of correlation to use for mass univariate
+        analysis
+    alpha : float
+        alpha threshold for correlation analysis
     partial_correlation : bool, default = False
         Applies partial correlation for PCA covariates. Works with PCA.
         https://pingouin-stats.org/generated/pingouin.partial_corr.html
@@ -380,14 +388,14 @@ def get_corr_scores(
     if aggregation_methods in ["mean"]:
         aggregation_methods = ["mean"]
 
-    project_path, output_path, parcellation_path = create_sample_path(
-        parcellation_file, marker_file, project_path
+    parcellation_path, parcellation_file_tail = os.path.split(
+        parcellation_file
     )
+    parcellation_name, _ = os.path.splitext(parcellation_file_tail)
 
     allen_dir = os.path.join(project_path, allen_data_dir)
 
-    # measures of region-wise gray matter density
-    gmd_aggregated, agg_func_params = get_gmd(
+    marker_aggregated, agg_func_params = _aggregate_marker(
         parcellation_file, marker_file, aggregation=aggregation_methods
     )
 
@@ -403,12 +411,12 @@ def get_corr_scores(
 
     # corr analysis
     corr_scores, significant_genes, pca_components = get_gene_expression(
-        gmd_aggregated['mean'],
+        marker_aggregated['mean'],
         parcellation_file,
         allen_data_dir=allen_dir,
         save_expressions=True,
-        correlation_method='spearman',
-        alpha=0.05,
+        correlation_method=correlation_method,
+        alpha=alpha,
         partial_correlation=partial_correlation,
         perform_pca=perform_pca,
         pca_dict=pca_dict,
@@ -417,17 +425,21 @@ def get_corr_scores(
 
     # save corr_scores for each surrogate map
     if is_surrogate:
+        fname = (
+            f'correlationmethod-{correlation_method}_alphalevel-{alpha}'
+            f'pcacovariates-{n_pca_comp}.tsv'
+        )
         corr_scores.to_csv(
             os.path.join(
                 output_path,
                 'smap_corr_scores',
-                f'{Path(parcellation_file).stem.split(".")[0]}.tsv'
+                fname
             ), sep="\t"
         )
 
     # If PCA is enabled, save components and corr_scores for original
     # parcellation
-    head, tail = os.path.split(parcellation_file)
+    _, tail = os.path.split(parcellation_file)
     if not os.path.isfile(f"{output_path}/{tail}"):
         os.system(f"cp {parcellation_file} {output_path}/.")
 
@@ -453,7 +465,14 @@ def get_corr_scores(
     return corr_scores, significant_genes, pca_components
 
 
-def export_significant_genes(parcellation_file, marker_file, project_path):
+def export_significant_genes(
+    parcellation_file,
+    marker_file,
+    project_path, 
+    correlation_method,
+    alpha,
+    partial_correlation,
+):
     """
     Searches .csv files in output directory, concats all gene correlation
     scores of surrogate maps.
@@ -473,27 +492,38 @@ def export_significant_genes(parcellation_file, marker_file, project_path):
     project_path : str or os.PathLike
         path to project directory, in which the input/output folders should be
         available
-
+    correlation_method : str
+        'spearman' or 'pearson', kind of correlation to use for mass univariate
+        analysis
+    alpha : float
+        alpha threshold for correlation analysis
+    partial_correlation : bool, default = False
+        Applies partial correlation for PCA covariates. Works with PCA.
+        https://pingouin-stats.org/generated/pingouin.partial_corr.html
+    perform_pca : bool, default = False,
+        Applies Principal component analysis (PCA) using scikit-learn.
+    n_pca_comp : int, default = 0
+        Number of components to keep.
+    custom_covariates_df : dict, default = None
+        If PCA is disabled and partial_correlation is enabled,
+        custom_covariates should be defined.
+    
     Returns
     -------
     rejected : list
         FDR corrected significant gene list.
     """
-
-    _, output_path, _ = create_sample_path(
-        parcellation_file, marker_file, project_path
-    )
-
+    
     # find all correllation csv files
-    logger.info(f"Trying to import significant genes..")
-    smap_corr_files = glob.glob(
-        os.path.join(output_path, "smap_corr_scores", "*.tsv")
-    )
+    logger.info(f"Import significant genes from surrogate maps...")
+    smap_corr_files = []
+    # for 
 
     # read, concat, delete p-val column from all csv
     smashed_data = []
     for f in smap_corr_files:
         smashed_data.append(pd.read_csv(f, sep="\t", index_col=0))
+
     smashed_concat = pd.concat(smashed_data, axis=1).drop(columns=["pval"])
 
     # get corr score for original atlas
@@ -516,7 +546,7 @@ def export_significant_genes(parcellation_file, marker_file, project_path):
 
     # FDR correction
     reject, corrected, *_ = multipletests(
-        df["pval"], alpha=0.05, method="fdr_bh",
+        df["pval"], alpha=alpha, method="fdr_bh",
         is_sorted=False, returnsorted=False
     )
     df["fdr"] = corrected
@@ -598,12 +628,12 @@ def run_webgestalt(
     print(elapsed_time)
 
 
-def get_gmd(atlas, vbm, aggregation=None, limits=None):
+def _aggregate_marker(atlas, vbm, aggregation=None, limits=None):
     """
     Constructs a masker based on the input atlas_nifti, applies resampling of
     the atlas if necessary and applies the masker to
-    the vbm_nifti to extract (and return) measures of region-wise gray matter
-    density (GMD). So far the aggregtaion methods "winsorized mean", "mean" and
+    the vbm_nifti to extract brain-imaging based vbm markers.
+    So far the aggregation methods "winsorized mean", "mean" and
     "std" are supported.
 
     Parameters
@@ -622,12 +652,12 @@ def get_gmd(atlas, vbm, aggregation=None, limits=None):
 
     Returns
     -------
-    gmd_aggregated : dict
+    marker_aggregated : dict
         Dictionary with keys being each of the chosen aggregation methods
-        and values the corresponding array with the calculated GMD based on the
-        provided atlas. The array therefore as the shape of the chosen number
-        of ROIs (granularity).
-    agg_func_params: dict
+        and values the corresponding array with the calculated marker based on 
+        the provided atlas. The array therefore as the shape of the chosen 
+        number of ROIs (granularity).
+    marker_func_params: dict
         Dictionary with parameters used for the aggregation function. Keys:
         respective aggregation function, values: dict with responding
         parameters
@@ -650,7 +680,9 @@ def get_gmd(atlas, vbm, aggregation=None, limits=None):
     # sort rois to be related to the order of i_roi (and get rid of 0 entry)
     rois = sorted(np.unique(image.get_data(atlas_nifti)))[1:]  # roi numbering
     n_rois = len(rois)  # granularity
-    gmd_aggregated = {x: np.ones(shape=(n_rois)) * np.nan for x in aggregation}
+    marker_aggregated = {
+        x: np.ones(shape=(n_rois)) * np.nan for x in aggregation
+    }
 
     # resample atlas if needed
     if not atlas_nifti.shape == vbm_nifti.shape:
@@ -664,7 +696,7 @@ def get_gmd(atlas, vbm, aggregation=None, limits=None):
     # make masker and apply
     for i_roi, roi in enumerate(rois):
         mask = image.math_img(f"img=={roi}", img=atlas_nifti)
-        gmd = masking.apply_mask(imgs=vbm_nifti, mask_img=mask)  # gmd per roi
+        marker = masking.apply_mask(imgs=vbm_nifti, mask_img=mask)  # gmd per roi
         # logger.info(f'Mask applied for roi {roi}.')
         # aggregate (for all aggregation options in list)
         for agg_name in aggregation:
@@ -672,10 +704,10 @@ def get_gmd(atlas, vbm, aggregation=None, limits=None):
             agg_func = _get_funcbyname(
                 agg_name, agg_func_params.get(
                     agg_name, None))
-            gmd_aggregated[agg_name][i_roi] = agg_func(gmd)
+            marker_aggregated[agg_name][i_roi] = agg_func(gmd)
     logger.info(f"{aggregation} was computed for all {n_rois} ROIs.\n")
 
-    return gmd_aggregated, agg_func_params
+    return marker_aggregated, agg_func_params
 
 
 def _get_funcbyname(name, func_params):
