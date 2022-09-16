@@ -2,7 +2,6 @@ import argparse
 import os
 import yaml
 from nimgen.pipelines.htcondor import HTCondor
-from ptpython.ipython import embed
 
 
 def parse_args():
@@ -122,4 +121,4 @@ def main():
     print("You are running the nimgen CLI!")
     yaml_file = validate_args(args)
     config_dict = yaml_to_dict(yaml_file)
-    pipeline = create_pipeline(config_dict)
+    _ = create_pipeline(config_dict)

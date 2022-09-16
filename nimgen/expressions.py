@@ -3,17 +3,27 @@
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 #          Kaustubh Patil <k.patil@fz-juelich.de>
 # License: AGPL
+
+import os
+from pathlib import Path
+import warnings
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-import os
 from scipy import stats
-import nibabel as nib
-import abagen
-from .utils import logger
 import pingouin as pg
 from sklearn.decomposition import PCA
-from nilearn import image
+
+import nibabel as nib
+import abagen
+from nilearn import image, masking
+
+from .stats import _get_funcbyname
+from .utils import (
+    covariates_to_nifti,
+    _read_sign_genes,
+    logger,
+)
 
 
 def _save_expressions(exp, atlas):
@@ -71,68 +81,6 @@ def apply_pca(exp, pca_dict=None):
         f"covariate-{(int(i)+1)}" for i, _ in enumerate(covariates_df)
     ]
     return covariates_df
-
-
-def covariates_to_nifti(parcellation, covariates_df):
-    """
-    Creates nifti images for given PCA covariates.
-
-    Parameters
-    ----------
-    parccellation : niimg-like object
-        A parcellation image in MNI space, where each parcel is identified by a
-        unique integer ID.
-    covariates_df : dict
-        PCA covariates. Each key represents different covariate.
-
-    Returns
-    -------
-    covariate_niftis : dict
-        A dictionary contains niimg-like object for each covariate.
-    """
-    parcellation_array = np.array(parcellation.dataobj)
-    covariate_niftis = {}
-    for covariate_label, covariate in covariates_df.items():
-        null_mat = np.zeros(parcellation_array.shape)
-        null_mat[parcellation_array == 0] = -20000
-        marker_min = np.min(covariate)
-        marker_max = np.max(covariate)
-        for label, value in covariate.iteritems():
-            null_mat[parcellation_array == label + 1] = value
-
-        pc_nii = image.new_img_like(
-            parcellation, null_mat
-        )
-        pc_nii.header["cal_min"] = marker_min
-        pc_nii.header["cal_max"] = marker_max
-        covariate_niftis[covariate_label] = pc_nii
-
-    return covariate_niftis
-
-
-def _read_sign_genes(sign_genes):
-    if isinstance(sign_genes, pd.DataFrame):
-        sign_genes = sign_genes.index
-    elif not isinstance(sign_genes, pd.DataFrame):
-        _, ext = os.path.splitext(sign_genes)
-        if ext in [".csv", ".tsv"]:
-            extensions = {".csv": ",", ".tsv": "\t"}
-            sign_genes = pd.read_csv(
-                sign_genes,
-                header=None,
-                index_col=0,
-                dtype=str,
-                sep=extensions[ext]
-            ).index
-        elif ext in [".txt"]:
-            sign_genes = list(np.loadtxt(sign_genes, dtype=str))
-        else:
-            raise ValueError(
-                "'sign_genes' should be a pd.DataFrame,"
-                " .csv/.tsv or .txt file!"
-            )
-
-    return list(sign_genes)
 
 
 def correlated_gene_expression(parcellation, sign_genes, metric="spearman"):
@@ -305,27 +253,33 @@ def correlation_analysis(
 
 
 def get_gene_expression(
-        markers,
-        atlas,
-        allen_data_dir=None,
-        save_expressions=True,
-        force_recompute=False,
-        correlation_method='spearman',
-        alpha=0.05,
-        perform_pca=False,
-        pca_dict=None,
-        partial_correlation=False,
-        custom_covariates_df=None):
-    """Get the genes expressed in the atlas that correlate with the
+    marker,
+    atlas,
+    aggregation_method="mean",
+    allen_data_dir=None,
+    save_expressions=True,
+    force_recompute=False,
+    correlation_method='spearman',
+    alpha=0.05,
+    perform_pca=False,
+    pca_dict=None,
+    partial_correlation=False,
+    custom_covariates_df=None
+):
+    """ Get the genes expressed in the atlas that correlate with the
     specified markers.
 
     Parameters
     ----------
-    markers : list(float) or np.ndarray or pandas.Series or pandas.DataFrame
-        Markers for each ROI in the atlas
+    marker : str or os.PathLike or niimg
+        Can be a path to a parcellated marker nifti-file or the nifti-object
+        already loaded
     atlas : niimg-like object
         A parcellation image in MNI space, where each parcel is identified by a
         unique integer ID.
+    aggregation_method : str
+        method to aggregate the marker given the parcellation. Can be
+        'winsorized_mean', 'mean', or 'std'. Default is 'mean'.
     allen_data_dir : pathlib.Path or string
         Directory where expression data should be downloaded (if it does not
         already exist) / loaded.
@@ -368,9 +322,178 @@ def get_gene_expression(
 
     """
 
+    marker_aggregated, _ = _aggregate_marker(atlas, marker)
+    marker = pd.DataFrame(marker_aggregated[aggregation_method])
+
+    # parcellate gene expression data and extract ROI's where
+    # gene expression levels are `NaN`
+    expressions, good_rois, bad_rois = _prepare_expressions(
+        marker,
+        atlas,
+        force_recompute=force_recompute,
+        allen_data_dir=allen_data_dir,
+        save_expressions=save_expressions
+    )
+    exp_no_nan, marker_no_nan = expressions[good_rois], marker[good_rois]
+
+    # prepare covariates if partial correlation is desired
+    covariates_dict_of_niftis = None
+    if partial_correlation:
+        assert perform_pca or custom_covariates_df, (
+            "If partial_correlation is True you should provide some covariates"
+            " or opt to perform a pca!"
+        )
+        covariates_df, covariates_dict_of_niftis = _prepare_covariates(
+            expressions,
+            atlas,
+            good_rois,
+            bad_rois,
+            perform_pca,
+            pca_dict,
+            custom_covariates_df
+        )
+    elif perform_pca and (custom_covariates_df is not None):
+        warnings.warn(
+            "Partial_correlation is set to False, but either perform_pca is "
+            "set to True or custom_covariates_df is not None!"
+        )
+
+    # perform mass-univariate correlation analysis
+    pval, r_score = correlation_analysis(
+        exp_no_nan,
+        marker_no_nan,
+        correlation_method,
+        partial_correlation,
+        covariates_df
+    )
+
+    all_genes = pd.DataFrame(
+        {
+            "genes": pval.index,
+            "pval": pval.values,
+            "r_score": r_score
+        }
+    ).set_index("genes")
+
+    sign_genes = all_genes[all_genes.pval < alpha]
+
+    return all_genes, sign_genes, covariates_dict_of_niftis
+
+
+def _aggregate_marker(atlas, vbm, aggregation=None, limits=None):
+    """
+    Constructs a masker based on the input atlas_nifti, applies resampling of
+    the atlas if necessary and applies the masker to
+    the vbm_nifti to extract brain-imaging based vbm markers.
+    So far the aggregation methods "winsorized mean", "mean" and
+    "std" are supported.
+
+    Parameters
+    ----------
+    atlas_nifti : niimg-like object
+        Nifti of atlas to use for parcellation.
+    vbm_nifti: niimg-like object
+        Nifti of voxel based morphometry as e.g. outputted by CAT.
+    aggregation: list
+        List with strings of aggregation methods to apply. Defaults to
+        aggregation = ['winsorized_mean', 'mean', 'std'].
+    limits: array
+        Array with lower and upper limit for the calculation of the winsorized
+        mean. Only needed when 'winsorized_mean' was specified
+        in aggregation. If wasn't specified defaults to [0.1, 0.1].
+
+    Returns
+    -------
+    marker_aggregated : dict
+        Dictionary with keys being each of the chosen aggregation methods
+        and values the corresponding array with the calculated marker based on
+        the provided atlas. The array therefore as the shape of the chosen
+        number of ROIs (granularity).
+    marker_func_params: dict
+        Dictionary with parameters used for the aggregation function. Keys:
+        respective aggregation function, values: dict with responding
+        parameters
+    """
+
+    atlas_nifti = image.load_img(atlas)
+    vbm_nifti = image.load_img(vbm)
+
+    # defaults (validity is checked in _get_funcbyname())
+    if aggregation is None:  # Don't put mutables as defaults, use None instead
+        aggregation = ["winsorized_mean", "mean", "std", "median"]
+    if limits is None:
+        limits = [0.1, 0.1]
+
+    # aggregation function parameters (validity is checked in
+    # _get_funcbyname())
+    agg_func_params = {"winsorized_mean": {"limits": limits}}
+
+    # definitions
+    # sort rois to be related to the order of i_roi (and get rid of 0 entry)
+    rois = sorted(np.unique(image.get_data(atlas_nifti)))[1:]  # roi numbering
+    n_rois = len(rois)  # granularity
+    marker_aggregated = {
+        x: np.ones(shape=(n_rois)) * np.nan for x in aggregation
+    }
+
+    # resample atlas if needed
+    if not atlas_nifti.shape == vbm_nifti.shape:
+        atlas_nifti = image.resample_to_img(
+            atlas_nifti, vbm_nifti, interpolation="nearest"
+        )
+        logger.info("Atlas nifti was resampled to resolution of VBM nifti.")
+
+    logger.info("make masker and apply")
+
+    # make masker and apply
+    for i_roi, roi in enumerate(rois):
+        mask = image.math_img(f"img=={roi}", img=atlas_nifti)
+        marker = masking.apply_mask(
+            imgs=vbm_nifti, mask_img=mask)  # gmd per roi
+        # logger.info(f'Mask applied for roi {roi}.')
+        # aggregate (for all aggregation options in list)
+        for agg_name in aggregation:
+            # logger.info(f'Aggregate GMD in roi {roi} using {agg_name}.')
+            agg_func = _get_funcbyname(
+                agg_name, agg_func_params.get(
+                    agg_name, None))
+            marker_aggregated[agg_name][i_roi] = agg_func(marker)
+    logger.info(f"{aggregation} was computed for all {n_rois} ROIs.\n")
+
+    return marker_aggregated, agg_func_params
+
+
+def _prepare_expressions(
+    marker,
+    atlas,
+    force_recompute=False,
+    allen_data_dir=None,
+    save_expressions=True
+):
+    """ Prepare parcellated gene expressions and marker.
+
+    Parameters
+    ----------
+    allen_data_dir : pathlib.Path or string
+        Directory where expression data should be downloaded (if it does not
+        already exist) / loaded.
+    save_expressions : bool, default = True
+        If True, the expressions on the atlas will be saved for later
+        calls to the function with the same atlas. It will create a file named
+        `nimgen_{atlas}_expressions.csv` next to the atlas file.
+    force_recompute : bool
+        If True, disregard the previously saved expressions and recompute the
+        gene expressions using abagen. Defaults to False.
+
+    Returns
+    -------
+    exp : pd.DataFrame
+        all parcellated gene expressions
+    marker : pd.DataFrame
+        parcellated marker
+    """
+
     abagen_params = {"probe_selection": "diff_stability"}
-    if not isinstance(markers, pd.DataFrame):
-        markers = pd.DataFrame(markers)
 
     if not isinstance(atlas, Path):
         atlas = Path(atlas)
@@ -381,15 +504,15 @@ def get_gene_expression(
     logger.info("Checking atlas and markers dimensions")
     atlas_img = nib.load(atlas)
     nrois = np.unique(atlas_img.get_fdata()).astype(np.int).shape[0] - 1
-    if nrois != len(markers):
+    if nrois != len(marker):
         raise ValueError(
-            f"Number of markers ({len(markers)}) does not match "
+            f"Number of markers ({len(marker)}) does not match "
             f"the number of ROIs in the atlas ({nrois})."
         )
 
     exp = None
     if force_recompute is False:
-        # Check if we have this results
+        # Check if we have these results
         exp = _get_cached_results(atlas)
 
     if exp is None or force_recompute is True:
@@ -404,39 +527,38 @@ def get_gene_expression(
     # use only ROIs without NaNs (ROIs with samples)
     good_rois = ~exp.iloc[:, 0].isna().values
     bad_rois = exp.iloc[:, 0].isna().values
-    exp_with_nan = exp.copy()
-    exp = exp[good_rois]
-    markers = markers[good_rois]
 
-    covariates_df = None
-    custom_covariates_df = None
-    covariates_nifti = None
+    return exp, good_rois, bad_rois
 
+
+def _prepare_covariates(
+    expression_data,
+    atlas_img,
+    good_rois,
+    bad_rois,
+    perform_pca,
+    pca_dict=None,
+    custom_covariates_df=None,
+):
     if perform_pca:
-        logger.info("Principal component analysis (PCA) started..")
-        covariates_df = apply_pca(exp, pca_dict)
+        logger.info("Principal component analysis (PCA) started...")
+        covariates_df = apply_pca(expression_data[good_rois], pca_dict)
         covariates_df_with_nans = pd.DataFrame(
-            np.zeros((exp_with_nan.shape[0], covariates_df.shape[1]))
+            np.zeros((expression_data.shape[0], covariates_df.shape[1]))
         )
         covariates_df_with_nans.columns = covariates_df.columns
         covariates_df_with_nans.iloc[good_rois] = covariates_df
         covariates_df_with_nans.iloc[bad_rois] = np.nan
         covariates_nifti = covariates_to_nifti(
-            atlas_img, covariates_df_with_nans)
+            atlas_img, covariates_df_with_nans
+        )
+        if custom_covariates_df is not None:
+            raise NotImplementedError(
+                "Use of both custom covariates and pca covariates not"
+                "implemented yet!"
+            )
     else:
-        # if perform_pca False but partial_correlation True
-        # then use custom_covarites_df
-        if partial_correlation:
-            covariates_df = custom_covariates_df
 
-    pval, r_score = correlation_analysis(exp, markers, correlation_method,
-                                         partial_correlation, covariates_df
-                                         )
+        covariates_df = custom_covariates_df
 
-    all_genes = pd.DataFrame(
-        {"genes": pval.index, "pval": pval.values, "r_score": r_score}
-    ).set_index("genes")
-
-    sign_genes = all_genes[all_genes.pval < alpha]
-
-    return all_genes, sign_genes, covariates_nifti
+    return covariates_df, covariates_nifti

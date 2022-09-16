@@ -1,20 +1,11 @@
 import os
-from pathlib import Path
 import shutil
-from ._file_strings import (
+from ._htcondor_file_strings import (
     STEP_ONE_FSTRING,
     STEP_TWO_FSTRING,
     STEP_THREE_FSTRING,
-    STEP_FOUR_FSTRING
 )
-
-def remove_nii_extensions(nii_file):
-    nii_name = Path(nii_file)
-
-    while nii_name.suffix in {".nii", ".gz"}:
-        nii_name = nii_name.with_suffix("")
-
-    return nii_name
+from ..utils import remove_nii_extensions
 
 
 class HTCondor:
@@ -114,62 +105,38 @@ class HTCondor:
     def prepare_run_in_venv(self):
         pass
 
-    def prepare_step_one(self):
-        pipeline_dir = os.path.join(self.project_path, self.pipeline_dir)
-        step_one_file = os.path.join(pipeline_dir, "step_one.py")
-        if not os.path.isfile(step_one_file):
-            with open(step_one_file, "w") as f:
-                f.write(
-                    STEP_ONE_FSTRING.format(
-                        self.config_dict["n_surrogate_maps"],
-                        self.project_path,
-                        os.path.join(self.project_path, self.parcellations_dir)
-                    )
-                )
+    def prepare_step(self, step):
+        _, name_marker_dir = os.path.split(self.marker_dir)
+        name_output_dir = self.output_dir
+        allen_data_dir = os.path.join(self.project_path, "allen_data_dir")
 
-    def prepare_step_two(self):
+        step_args = [
+            (
+                STEP_ONE_FSTRING,
+                ["placeholder"]
+            ),
+            (
+                STEP_TWO_FSTRING,
+                [name_marker_dir, name_output_dir, allen_data_dir]
+            ),
+            (
+                STEP_THREE_FSTRING,
+                [name_marker_dir, name_output_dir, allen_data_dir, self.r_path]
+            )
+        ]
         pipeline_dir = os.path.join(self.project_path, self.pipeline_dir)
-        step_two_file = os.path.join(pipeline_dir, "step_two.py")
-        if not os.path.isfile(step_two_file):
-            with open(step_two_file, "w") as f:
-                f.write(
-                    STEP_TWO_FSTRING.format(
-                        self.project_path
-                    )
-                )
-
-    def prepare_step_three(self):
-        pipeline_dir = os.path.join(self.project_path, self.pipeline_dir)
-        step_three_file = os.path.join(pipeline_dir, "step_three.py")
-        if not os.path.isfile(step_three_file):
-            with open(step_three_file, "w") as f:
-                f.write(
-                    STEP_THREE_FSTRING.format(
-                        self.project_path,
-                        self.marker_dir,
-                        os.path.join(self.project_path, self.output_dir),
-                        self.r_path
-                    )
-                )
-
-    def prepare_step_four(self):
-        pipeline_dir = os.path.join(self.project_path, self.pipeline_dir)
-        step_four_file = os.path.join(pipeline_dir, "step_four.py")
-        if not os.path.isfile(step_four_file):
-            with open(step_four_file, "w") as f:
-                f.write(
-                    STEP_FOUR_FSTRING.format(
-                    )
-                )
-
+        step_file = os.path.join(pipeline_dir, f"step_{step}.py")
+        if not os.path.isfile(step_file):
+            with open(step_file, "w") as f:
+                fstring, args = step_args[step - 1]
+                f.write(fstring.format(*args))
 
     def prepare_submit_files(self):
         pass
 
     def create(self):
         self.prepare_run_in_venv()
-        self.prepare_step_one()
-        self.prepare_step_two()
-        self.prepare_step_three()
-        self.prepare_step_four()
+        for step in range(1, 4):
+            self.prepare_step(step)
+
         self.prepare_submit_files()
