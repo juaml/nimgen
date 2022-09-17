@@ -18,7 +18,7 @@ import nibabel as nib
 import abagen
 from nilearn import image, masking
 
-from .stats import _get_funcbyname
+from .statistics import _get_funcbyname
 from .utils import (
     covariates_to_nifti,
     _read_sign_genes,
