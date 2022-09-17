@@ -43,7 +43,7 @@ class Pipeline:
             self.marker_dir = os.path.abspath(self.marker_dir)
 
         for dir in [
-            self.submit_files_dir, self.output_dir, self.parcellations_dir
+            self.output_dir, self.parcellations_dir, self.pipeline_dir
         ]:
             dir = os.path.join(self.project_path, dir)
             if not os.path.isdir(dir):

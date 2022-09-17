@@ -26,7 +26,7 @@ class HTCondor(Pipeline):
         super().__init__(config_dict)
         self.submit_files_dir = config_dict["submit_files_dir"]
         directory = os.path.join(self.project_path, self.submit_files_dir)
-        if not os.path.isdir(dir):
+        if not os.path.isdir(directory):
             print(f"Creating {directory}")
             os.mkdir(directory)
         else:
