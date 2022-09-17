@@ -1,0 +1,84 @@
+[build-system]
+requires = [
+  "setuptools >= 61.0.0",
+  "wheel",
+  "setuptools_scm[toml] >= 6.2"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nimgen"
+description = "Open source toolbox for neuroimaging-genetics mappings"
+readme = "README.md"
+requires-python = ">=3.5"
+license = {file = "LICENSE.md"}
+authors = [
+    {email = "f.raimondo@fz-juelich.de"},
+    {name = "Fede Raimondo"},
+    {email = "l.sasse@fz-juelich.de"},
+    {name = "Leonard Sasse"},
+    {email = "tyasird@gmail.com"},
+    {name = "Yasir Demirtaş"}
+]
+
+keywords = [
+    "neuroimaging",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved",
+    "Natural Language :: English",
+    "Topic :: Software Development",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "pandas>=1.1.2",
+    "nibabel>=3.2.0,<4.1",
+    "nilearn>=0.9.0,<1.0",
+    "pyyaml>=5.1.2,<7.0",
+    "numpy",
+    "abagen",
+    "pingouin",
+    "brainsmash"
+]
+dynamic = ["version"]
+
+[project.urls]
+# homepage = "https://juaml.github.io/" # no homepage yet
+# documentation = "https://juaml.github.io/ # no docs yet
+repository = "https://github.com/juaml/nimgen"
+
+[project.scripts]
+nimgen = "nimgen.nimgen:main"
+
+[project.optional-dependencies]
+dev = ["tox"]
+docs = [
+    "seaborn>=0.11.2,<0.12",
+    "Sphinx>=5.0.2,<5.1",
+    "sphinx-gallery>=0.10.1,<0.11",
+    "sphinx-rtd-theme>=1.0.0,<1.1",
+    "sphinx-multiversion>=0.2.4,<0.3",
+    "numpydoc>=1.4.0,<1.5",
+]
+
+################
+# Tool configs #
+################
+
+[tool.setuptools]
+packages = ["nimgen"]
+
+[tool.setuptools_scm]
+version_scheme = "python-simplified-semver"
+local_scheme = "no-local-version"
+write_to = "nimgen/_version.py"
+
+[tool.black]
+line-length = 79
+target-version = ["py37"]
