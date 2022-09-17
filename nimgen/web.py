@@ -1,3 +1,8 @@
+"""Module to interface with R and Webgestalt for Gene Enrichment Analysis."""
+
+# Authors: Yasir Demirtaş <tyasird@gmail.com>
+#          Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
 
 import os
 from time import perf_counter
@@ -7,9 +12,9 @@ from .utils import logger
 
 
 def r_script_file():
-    """
-    Returns webgestalt.r abspath. It is generally inside in the r_script folder
-    in the package.
+    """Return webgestalt.r abspath.
+
+    It is generally inside in the r_script folder in the package.
     """
     r_file = os.path.dirname(
         os.path.abspath(__file__)
@@ -23,8 +28,7 @@ def run_webgestalt(
     r_arg='--vanilla',
     r_exec='./../r_script/webgestalt.r'
 ):
-    """
-    Runs Webgestalt R package to conduct enrichment analysis.
+    """Run Webgestalt R package to conduct enrichment analysis.
 
     Parameters
     ----------

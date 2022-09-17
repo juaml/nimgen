@@ -1,3 +1,8 @@
+"""Console script for CLI."""
+
+# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
+
 import argparse
 import os
 import yaml
@@ -5,7 +10,7 @@ from nimgen.pipelines.htcondor import HTCondor
 
 
 def parse_args():
-    """ Initialise the CLI script by parsing arguments. """
+    """Initialise the CLI script by parsing arguments."""
 
     parser = argparse.ArgumentParser(
         description=(
@@ -38,8 +43,7 @@ def parse_args():
 
 
 def validate_args(args):
-    """ Check that values for keyword arguments are valid, return the correct
-    path to a pipeline yaml file.
+    """Check that values for keyword arguments are valid.
 
     Parameters
     ----------
@@ -70,7 +74,7 @@ def validate_args(args):
 
 
 def yaml_to_dict(path_to_file):
-    """ Read yaml file with pipeline specifications.
+    """Read yaml file with pipeline specifications.
 
     Parameters
     ----------
@@ -91,8 +95,7 @@ def yaml_to_dict(path_to_file):
 
 
 def create_pipeline(config_dict):
-    """ Take configuration dict and construct and return the appropriate
-     pipeline object
+    """Take configuration dict and construct and return pipeline object.
 
     Parameters
     ----------
@@ -116,7 +119,7 @@ def create_pipeline(config_dict):
 
 
 def main():
-
+    """Run nimgen CLI."""
     args = parse_args()
     print("You are running the nimgen CLI!")
     yaml_file = validate_args(args)

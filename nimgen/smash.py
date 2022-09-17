@@ -1,3 +1,9 @@
+"""Run permutation tests using brainsmash to remove spatial autocorrelation."""
+
+# Authors: Yasir Demirtaş <tyasird@gmail.com>
+#          Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
+
 import os
 from time import perf_counter
 
@@ -11,9 +17,7 @@ from .utils import logger
 
 
 def export_voxel_coordinates(parcellation_file, outpath):
-    """
-    Extracts XYZ voxel coordinates and parcel numbers from every voxel within
-    an ROI image consisting of ones and zeros based on the parcellation file.
+    """Extract XYZ voxel coordinates and parcel numbers from every voxel.
 
     Parameters
     ----------
@@ -30,7 +34,7 @@ def export_voxel_coordinates(parcellation_file, outpath):
         voxel parcel file `brain_map.txt`.
     """
 
-    logger.info(f"Trying to export voxel coordinates..")
+    logger.info("Trying to export voxel coordinates..")
     voxel_coord_file = os.path.join(outpath, "voxel_coordinates.txt")
     voxel_parcel_file = os.path.join(outpath, "brain_map.txt")
 
@@ -62,15 +66,13 @@ def generate_distance_matrices(
     path,
     chunk_size=1000,
 ):
-    """
-    Generates distance matrices for BrainSMASH based on the XYZ voxel
-    coordinates.
+    """Generate distance matrices for BrainSMASH.
 
     Parameters
     ----------
     path : str or os.PathLike
         path to directory, in which the distance matrix should be saved
-    chunck_size : int, default 1000
+    chunk_size : int, default 1000
         The number of voxels to process per chunk. For N voxels, this will
         impose a memory burden of N*`chunk_size` per iteration (in contrast to
         a memory burden of N*N for a single iteration, in the absence of
@@ -84,7 +86,7 @@ def generate_distance_matrices(
         `brainsmash.mapgen.sampled.Sampled`.
     """
     voxel_coordinate_file = os.path.join(path, 'voxel_coordinates.txt')
-    print(f"Trying to generate distance matrices..")
+    print("Trying to generate distance matrices..")
     matrix_files = {
         'D': os.path.join(path, 'distmat.npy'),
         'index': os.path.join(path, 'index.npy')
@@ -94,7 +96,7 @@ def generate_distance_matrices(
     if os.path.isfile(
         matrix_files["D"]
     ) and os.path.isfile(matrix_files["index"]):
-        logger.info(f"Distance matrix files already exist.")
+        logger.info("Distance matrix files already exist.")
         return matrix_files
 
     pc1 = perf_counter()
@@ -112,15 +114,12 @@ def generate_surrogate_map(
     voxel_parcel_file,
     matrix_files
 ):
-    """
-    Randomly generates surrogate maps with matched spatial autocorrelation
-    based on the parcellation file
-    and matrix files.
+    """Randomly generate surrogate maps with matched spatial autocorrelation.
 
     Parameters
     ----------
     parcellation_file : str or os.PathLike
-        Nifti of atlas to use for parcellation.
+        Nifti of atlas to use for parcellation to smash.
     smap_id : str
         ID of surrogate maps to randomly generate.
     outpath : str or os.PathLike
@@ -135,7 +134,7 @@ def generate_surrogate_map(
         Surrogate brain map filename.
     """
 
-    logger.info(f"Trying to generate surrogate map..")
+    logger.info("Trying to generate surrogate map..")
     smaps_dir = os.path.join(outpath, "smaps")
     smap_file = os.path.join(smaps_dir, f"{smap_id}_smap.nii")
 
@@ -161,9 +160,7 @@ def generate_surrogate_map(
 
 
 def _create_nifti(xyz_arr, ref_parcellation_file, output_filename):
-    """
-    Creates nifti file based on the XYZ coordinates and reference
-    parcellation file.
+    """Create nifti file based on the XYZ coordinates and ref. parc. file.
 
     Parameters
     ----------

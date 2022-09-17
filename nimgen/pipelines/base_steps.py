@@ -1,3 +1,5 @@
+"""Basic steps to run the mass-univariate nimgen correlation analysis."""
+
 import os
 from pathlib import Path
 import glob
@@ -71,7 +73,8 @@ def _save_correlation_matrices(
 
 
 def step_1(parcellation_file):
-    """ Step 1 in HTCondor-based pipeline.
+    """Run step 1 in HTCondor-based pipeline.
+
     Create a distance matrix for a given parcellation scheme so that surrogate
     parcellations can be created using BrainSmash. This step is quite time
     intensive and to speed up the following steps and their (potential)
@@ -88,6 +91,7 @@ def step_1(parcellation_file):
 
     Returns
     -------
+    None; saves distance matrices in the appropriate parcellation directory
     """
     if not os.path.isfile(parcellation_file):
         raise ValueError('Input file not found.')
@@ -113,7 +117,8 @@ def step_2(
     n_pca_covariates=None,
     partial_correlation=False,
 ):
-    """ Step 2 in HTCondor-based pipeline.
+    """Run step 2 in HTCondor-based pipeline.
+
     Create a single instance of a surrogate map using the distance matrix
     generated in step 1. Depending on the number of permutations desired for
     statistical testing and calculation of empirical p-values in the following
@@ -124,10 +129,33 @@ def step_2(
 
     Parameters
     ----------
+    parcellation_file : str or os.PathLike
+        Path to the parcellation nifti file
+    marker_file : str or os.PathLike
+        Path to the marker nifti file
+    name_markers_dir : str
+        name of root directory of all markers in the nimgen pipeline
+    name_output_dir : str
+        name of root directory of all outputs of the nimgen pipeline
+    smap_id : int
+        unique number identifying the surrogate map
+    allen_data_dir : str or os.PathLike
+        root directory of AHBA data
+    correlation_method : str
+        'spearman' or 'pearson'
+    alpha : float
+        alpha level at which to reject the null
+    n_pca_covariates : int or None
+        number of components gene expression components (after pca) to include
+        as covariates in the partial correlation between marker and genes.
+    partial_correlation : bool
+        whether to perform a partial correlation (given a covariate i.e. pca)
+        or not
 
     Returns
     -------
-
+    None; saves correlation scores for surrogate maps in appropriate output
+    directory
     """
     if not os.path.isfile(parcellation_file):
         raise ValueError('Input file not found.')
@@ -208,7 +236,8 @@ def step_3(
     n_pca_covariates=None,
     partial_correlation=False,
 ):
-    """ Step 3 in HTCondor-based pipeline.
+    """Run step 3 in HTCondor-based pipeline.
+
     Perform mass-univariate correlation analysis, calculate empirical p-values
     using surrogate results, and export significant genes, as well as gene
     co-expression matrix, region-wise gene expression correlation matrix.

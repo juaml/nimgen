@@ -1,3 +1,4 @@
+"""Perform domain general statistical operations."""
 
 from functools import partial
 
@@ -8,7 +9,9 @@ from .utils import logger, raise_error
 
 
 def empirical_pval(stat, stat0):
-    """ Calculates empirical p-value based on the observed (surrogate maps)
+    """Calculate empirical p-value.
+
+    Calculate empirical p-value based on the observed (surrogate maps)
     and expected (reference map) correlation scores.
 
     Parameters
@@ -24,14 +27,14 @@ def empirical_pval(stat, stat0):
         Calculated empirical pvalues.
     """
 
-    logger.info(f"Empirical p-value calculation...")
+    logger.info("Empirical p-value calculation...")
     check = np.sum(np.abs(stat) > np.abs(stat0), axis=0)
     pvalues = (check + 1) / (len(stat) + 1)
     return pvalues
 
 
 def winsorized_mean(data, axis=None, **win_params):
-    """ Chain winsorization and mean to compute winsorize mean.
+    """Chain winsorization and mean to compute winsorize mean.
 
     Parameters
     ----------
@@ -54,7 +57,7 @@ def winsorized_mean(data, axis=None, **win_params):
 
 
 def _get_funcbyname(name, func_params):
-    """ Helper function to generically apply any function.
+    """Apply any function by name.
 
     Parameters
     ----------

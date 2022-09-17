@@ -1,3 +1,5 @@
+"""Fetch gene expression data from AHBA and run mass-univariate analysis."""
+
 # Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
 #          Sami Hamdan <s.hamdan@fz-juelich.de>
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
@@ -27,7 +29,7 @@ from .utils import (
 
 
 def _save_expressions(exp, atlas):
-    logger.info(f"Trying to save expressions")
+    logger.info("Trying to save expressions")
     save_path = atlas.parent
     atlas_name = atlas.stem
     if os.access(save_path, os.W_OK):
@@ -84,9 +86,7 @@ def apply_pca(exp, pca_dict=None):
 
 
 def correlated_gene_expression(parcellation, sign_genes, metric="spearman"):
-    """
-    Performs correlated gene expression analysis for original parcellation
-    file using significant genes. (ROIxROI matrix)
+    """Perform correlated gene expression analysis (ROIxROI matrix).
 
     Parameters
     ----------
@@ -132,9 +132,7 @@ def correlated_gene_expression(parcellation, sign_genes, metric="spearman"):
 
 
 def gene_coexpression(parcellation, sign_genes, metric="spearman"):
-    """
-    Performs gene co-expression analysis for original parcellation file using
-    significant genes. (Gene x Gene matrix)
+    """Perform gene co-expression analysis for (Gene x Gene matrix).
 
     Parameters
     ----------
@@ -188,8 +186,8 @@ def correlation_analysis(
         correlation_method,
         partial_correlation,
         covariates_df):
-    """
-    Applies correlation analysis for given gene expressions and markers.
+    """Apply correlation analysis for given gene expressions and markers.
+
     If partial correlation is False, performs normal correlation based on
     correlation_method. If partial correlation is True, covariates_df should
     be given.
@@ -266,8 +264,7 @@ def get_gene_expression(
     partial_correlation=False,
     custom_covariates_df=None
 ):
-    """ Get the genes expressed in the atlas that correlate with the
-    specified markers.
+    """Get the genes expressed that correlate with the specified markers.
 
     Parameters
     ----------
@@ -381,9 +378,9 @@ def get_gene_expression(
 
 
 def _aggregate_marker(atlas, vbm, aggregation=None, limits=None):
-    """
-    Constructs a masker based on the input atlas_nifti, applies resampling of
-    the atlas if necessary and applies the masker to
+    """Construct a masker based on the input atlas_nifti.
+
+    Applies resampling of the atlas if necessary and applies the masker to
     the vbm_nifti to extract brain-imaging based vbm markers.
     So far the aggregation methods "winsorized mean", "mean" and
     "std" are supported.
@@ -470,7 +467,7 @@ def _prepare_expressions(
     allen_data_dir=None,
     save_expressions=True
 ):
-    """ Prepare parcellated gene expressions and marker.
+    """Prepare parcellated gene expressions and marker.
 
     Parameters
     ----------

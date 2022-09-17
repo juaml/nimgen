@@ -1,7 +1,11 @@
+"""Utility functions commonly used in a variety of modules."""
+
 # Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
+#          Leonard Sasse <l.sasse@fz-juelich.de>
 #          Sami Hamdan <s.hamdan@fz-juelich.de>
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 # License: AGPL
+
 import logging
 import json
 import os
@@ -21,17 +25,20 @@ logger.propagate = False
 
 
 def save_as_json(data, file):
+    """Save data dictionary as a file."""
     with open('data.txt', 'w'):
         json.dump(data, file, sort_keys=True, indent=4,
                   ensure_ascii=False)
 
 
 def raise_error(error):
+    """Raise an error."""
     logger.error(error)
     raise
 
 
 def remove_nii_extensions(nii_file):
+    """Remove file extension from .nii or nii.gz path."""
     nii_name = Path(nii_file)
 
     while nii_name.suffix in {".nii", ".gz"}:
@@ -41,6 +48,7 @@ def remove_nii_extensions(nii_file):
 
 
 def read_csv_tsv(path):
+    """Read both csv and tsv, file type inferred by extension."""
     _, ext = os.path.splitext(path)
     extensions = {
         ".csv": ",",
@@ -53,8 +61,7 @@ def read_csv_tsv(path):
 
 
 def covariates_to_nifti(parcellation, covariates_df):
-    """
-    Creates nifti images for given PCA covariates.
+    """Create nifti images for given PCA covariates.
 
     Parameters
     ----------
@@ -68,6 +75,7 @@ def covariates_to_nifti(parcellation, covariates_df):
     -------
     covariate_niftis : dict
         A dictionary contains niimg-like object for each covariate.
+
     """
     parcellation_array = np.array(parcellation.dataobj)
     covariate_niftis = {}
@@ -115,7 +123,8 @@ def _read_sign_genes(sign_genes):
 
 
 class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
+    """dot.notation access to dictionary attributes."""
+
     __getattr__ = dict.get
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
