@@ -1,26 +1,26 @@
 """Basic steps to run the mass-univariate nimgen correlation analysis."""
 
-import os
 import glob
+import os
 
 import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
-from .base import _specific_marker_output
 
 from ..expressions import (
-    get_gene_expression,
     correlated_gene_expression,
-    gene_coexpression
+    gene_coexpression,
+    get_gene_expression,
+)
+from ..smash import (
+    export_voxel_coordinates,
+    generate_distance_matrices,
+    generate_surrogate_map,
 )
 from ..statistics import empirical_pval
+from ..utils import logger, remove_nii_extensions
 from ..web import run_webgestalt
-from ..smash import (
-    generate_distance_matrices,
-    export_voxel_coordinates,
-    generate_surrogate_map
-)
-from ..utils import remove_nii_extensions, logger
+from .base import _specific_marker_output
 
 
 def _save_correlation_matrices(
@@ -46,29 +46,35 @@ def _save_correlation_matrices(
     # save as csv in the output path
     coexp_matrix.to_csv(
         os.path.join(
-            output_path, f'significant-genes_gene_by_gene_'
-            f'correlation_matrix_{metric}.tsv'
-        ), sep="\t"
+            output_path,
+            f"significant-genes_gene_by_gene_"
+            f"correlation_matrix_{metric}.tsv",
+        ),
+        sep="\t",
     )
     corr_gene_exp_matrix.to_csv(
         os.path.join(
-            output_path, f'significant-genes_region_by_region_'
-            f'correlation_matrix_{metric}.tsv'
-        ), sep="\t"
+            output_path,
+            f"significant-genes_region_by_region_"
+            f"correlation_matrix_{metric}.tsv",
+        ),
+        sep="\t",
     )
 
     # save matrices based on all genes
     coexp_all_matrix.to_csv(
         os.path.join(
             output_path,
-            f'all-genes_gene_by_gene_correlation_matrix_{metric}.tsv'
-        ), sep="\t"
+            f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv",
+        ),
+        sep="\t",
     )
     corr_all_gene_exp_matrix.to_csv(
         os.path.join(
             output_path,
-            f'all-genes_region_by_region_correlation_matrix_{metric}.tsv'
-        ), sep="\t"
+            f"all-genes_region_by_region_correlation_matrix_{metric}.tsv",
+        ),
+        sep="\t",
     )
 
 
@@ -94,7 +100,7 @@ def step_1(parcellation_file):
     None; saves distance matrices in the appropriate parcellation directory
     """
     if not os.path.isfile(parcellation_file):
-        raise ValueError('Input file not found.')
+        raise ValueError("Input file not found.")
 
     path_to_parc, _ = os.path.split(parcellation_file)
     # `generate_distance_matrix` already checks if the distance matrix exists,
@@ -160,7 +166,7 @@ def step_2(
 
     partial_correlation = False if n_pca_covariates is None else True
     if not os.path.isfile(parcellation_file):
-        raise ValueError('Input file not found.')
+        raise ValueError("Input file not found.")
 
     path_to_parc, name_parc_ext = os.path.split(parcellation_file)
     name_parc = remove_nii_extensions(name_parc_ext)
@@ -171,8 +177,8 @@ def step_2(
 
     voxel_parcel_file = os.path.join(path_to_parc, "brain_map.txt")
     matrix_files = {
-        'D': os.path.join(path_to_parc, 'distmat.npy'),
-        'index': os.path.join(path_to_parc, 'index.npy')
+        "D": os.path.join(path_to_parc, "distmat.npy"),
+        "index": os.path.join(path_to_parc, "index.npy"),
     }
 
     smap_id_corr_score_str = (
@@ -186,16 +192,16 @@ def step_2(
         smap_id,
         path_to_parc,
         voxel_parcel_file,
-        matrix_files
+        matrix_files,
     )
 
     if n_pca_covariates is None:
         perform_pca = False
         pca_dict = None
     else:
-        assert isinstance(n_pca_covariates, int), (
-            "n_pca_covariates has to be an integer!"
-        )
+        assert isinstance(
+            n_pca_covariates, int
+        ), "n_pca_covariates has to be an integer!"
         pca_dict = {"n_components": n_pca_covariates}
         perform_pca = True
 
@@ -216,8 +222,10 @@ def step_2(
     all_genes_corr_scores.to_csv(
         os.path.join(
             path_to_specific_marker_output,
-            'smap_corr_scores', f'{smap_id_corr_score_str}.tsv'
-        ), sep="\t"
+            "smap_corr_scores",
+            f"{smap_id_corr_score_str}.tsv",
+        ),
+        sep="\t",
     )
 
 
@@ -277,9 +285,10 @@ def step_3(
     partial_correlation = False if n_pca_covariates is None else True
     glob_files = glob.glob(
         os.path.join(
-            path_to_specific_marker_output, "smap_corr_scores",
+            path_to_specific_marker_output,
+            "smap_corr_scores",
             f"smapid-*-correlationmethod-{correlation_method}"
-            f"_npcacovariates-{n_pca_covariates}.tsv"
+            f"_npcacovariates-{n_pca_covariates}.tsv",
         )
     )
 
@@ -290,24 +299,22 @@ def step_3(
             path_to_specific_marker_output, "smap_corr_scores", f
         )
         smashed_data.append(
-            pd.read_csv(
-                smashed_results,
-                sep="\t",
-                index_col=0))
+            pd.read_csv(smashed_results, sep="\t", index_col=0)
+        )
     smashed_corr_df = pd.concat(smashed_data, axis=1)
 
     # prepare output directories
     if not os.path.isfile(parcellation_file):
-        raise ValueError('Input file not found.')
+        raise ValueError("Input file not found.")
 
     # prepare potential pca
     if n_pca_covariates is None:
         perform_pca = False
         pca_dict = None
     else:
-        assert isinstance(n_pca_covariates, int), (
-            "n_pca_covariates has to be an integer!"
-        )
+        assert isinstance(
+            n_pca_covariates, int
+        ), "n_pca_covariates has to be an integer!"
         pca_dict = {"n_components": n_pca_covariates}
         perform_pca = True
 
@@ -334,7 +341,7 @@ def step_3(
         alpha=alpha,
         method="fdr_bh",
         is_sorted=False,
-        returnsorted=False
+        returnsorted=False,
     )
     all_genes_corr_scores["fdr_bh_corrected_empirical_pvals"] = corrected
     all_genes_corr_scores[f"reject_at_alpha-{alpha}"] = reject
@@ -344,8 +351,9 @@ def step_3(
 
     if partial_correlation and perform_pca:
         output_path_comps = os.path.join(
-            path_to_specific_marker_output, "pca_covariates",
-            f"{n_pca_covariates}_component_pca"
+            path_to_specific_marker_output,
+            "pca_covariates",
+            f"{n_pca_covariates}_component_pca",
         )
         output_path = os.path.join(
             output_path_comps, correlation_method, f"alpha-{alpha}"
@@ -353,15 +361,15 @@ def step_3(
     else:
         output_path = os.path.join(
             path_to_specific_marker_output,
-            correlation_method, f"alpha-{alpha}"
+            correlation_method,
+            f"alpha-{alpha}",
         )
 
     if not os.path.isdir(output_path):
         os.makedirs(output_path)
 
     genes_file = os.path.join(
-        output_path,
-        'significant-empirical-pvalue-fdr-corrected_genes.txt'
+        output_path, "significant-empirical-pvalue-fdr-corrected_genes.txt"
     )
     np.savetxt(genes_file, significant_genes, fmt="%s")
 

@@ -4,27 +4,24 @@
 # License: AGPL
 
 import os
-from itertools import product
-from ast import literal_eval
-from pathlib import Path
 import shutil
+from ast import literal_eval
+from itertools import product
+from pathlib import Path
+
 from ..utils import remove_nii_extensions
 
 
-def _specific_marker_output(
-    marker_file, marker_dir, output_dir, name_parc
-):
-    # step 1 is taken care of by the step itsel
+def _specific_marker_output(marker_file, marker_dir, output_dir, name_parc):
+    # step 1 is taken care of by the step itself
     # step 2:
     marker_file = os.path.join(marker_dir, marker_file)
-    _, marker_structure = Path(
-        marker_file
-    ).absolute().as_posix().split(marker_dir)
+    _, marker_structure = (
+        Path(marker_file).absolute().as_posix().split(marker_dir)
+    )
     head, tail = os.path.split(marker_structure[1:])
     marker_name, _ = os.path.splitext(tail)
-    return os.path.join(
-        output_dir, name_parc, head, marker_name
-    )
+    return os.path.join(output_dir, name_parc, head, marker_name)
 
 
 class Pipeline:
@@ -52,7 +49,6 @@ class Pipeline:
         output_dir="output",
         parcellations_dir="parcellations",
         config_dict=None,
-
     ):
         """Initialise pipeline directory."""
         self.project_path = os.path.abspath(project_path)
@@ -74,9 +70,9 @@ class Pipeline:
         else:
             if isinstance(correlation_method, str):
                 correlation_method = [correlation_method]
-            assert isinstance(correlation_method, list), (
-                "Correlation method should be provided as a list or a string!"
-            )
+            assert isinstance(
+                correlation_method, list
+            ), "Correlation method should be provided as a list or a string!"
             self.correlation_method = correlation_method
 
         if not isinstance(alpha, list):
@@ -98,7 +94,9 @@ class Pipeline:
             raise FileNotFoundError(f"{self.marker_dir} not found!")
 
         for dir in [
-            self.output_dir, self.parcellations_dir, self.pipeline_dir
+            self.output_dir,
+            self.parcellations_dir,
+            self.pipeline_dir,
         ]:
             dir = os.path.join(self.project_path, dir)
             if not os.path.isdir(dir):
@@ -115,7 +113,7 @@ class Pipeline:
                 parcellation_name = remove_nii_extensions(parc_file_tail)
                 self.parcellation_marker_dict[parcellation_name] = (
                     parc_file_tail,
-                    self.parcellation_files[parcellation_file]
+                    self.parcellation_files[parcellation_file],
                 )
                 dir_this_parc = os.path.join(
                     self.parcellations_dir, parcellation_name
@@ -153,7 +151,7 @@ class Pipeline:
 
     def create_output_dirs(self, name_parc, marker_file):
         """Create output directory structure for a marker and parcellation."""
-        # step 1 is taken care of by the step itsel
+        # step 1 is taken care of by the step itself
         # step 2:
         output_dir = os.path.join(self.project_path, self.output_dir)
         specific_marker_output = _specific_marker_output(
@@ -171,8 +169,9 @@ class Pipeline:
         ):
             if isinstance(n_pca_cov, int):
                 output_path_comps = os.path.join(
-                    specific_marker_output, "pca_covariates",
-                    f"{n_pca_cov}_component_pca"
+                    specific_marker_output,
+                    "pca_covariates",
+                    f"{n_pca_cov}_component_pca",
                 )
                 output_path = os.path.join(
                     output_path_comps, correlation_method, f"alpha-{alpha}"
@@ -180,7 +179,8 @@ class Pipeline:
             elif literal_eval(n_pca_cov) is None:
                 output_path = os.path.join(
                     specific_marker_output,
-                    correlation_method, f"alpha-{alpha}"
+                    correlation_method,
+                    f"alpha-{alpha}",
                 )
             if not os.path.isdir(output_path):
                 os.makedirs(output_path)
@@ -198,7 +198,10 @@ class Pipeline:
         path, _ = os.path.split(parcfile)
         files_exist = [os.path.split(x)[1] for x in os.listdir(path)]
         files_needed = [
-            "brain_map.txt", "distmat.py", "index.npy", "voxel_coordinates.txt"
+            "brain_map.txt",
+            "distmat.py",
+            "index.npy",
+            "voxel_coordinates.txt",
         ]
         for f in files_needed:
             if f not in files_exist:
@@ -240,8 +243,9 @@ class Pipeline:
 
         if isinstance(n_pca_cov, int):
             output_path_comps = os.path.join(
-                specific_marker_output, "pca_covariates",
-                f"{n_pca_cov}_component_pca"
+                specific_marker_output,
+                "pca_covariates",
+                f"{n_pca_cov}_component_pca",
             )
             output_path = os.path.join(
                 output_path_comps, corr_method, f"alpha-{alpha}"
@@ -252,8 +256,7 @@ class Pipeline:
             )
 
         genes_file = os.path.join(
-            output_path,
-            'significant-empirical-pvalue-fdr-corrected_genes.txt'
+            output_path, "significant-empirical-pvalue-fdr-corrected_genes.txt"
         )
         if not os.path.isfile(genes_file):
             return False
@@ -261,15 +264,15 @@ class Pipeline:
         for metric in ["spearman", "pearson"]:
             matrix_files = [
                 (
-                    'significant-genes_gene_by_gene_'
-                    f'correlation_matrix_{metric}.tsv'
+                    "significant-genes_gene_by_gene_"
+                    f"correlation_matrix_{metric}.tsv"
                 ),
                 (
-                    'significant-genes_region_by_region_'
-                    f'correlation_matrix_{metric}.tsv'
+                    "significant-genes_region_by_region_"
+                    f"correlation_matrix_{metric}.tsv"
                 ),
-                f'all-genes_gene_by_gene_correlation_matrix_{metric}.tsv',
-                f'all-genes_region_by_region_correlation_matrix_{metric}.tsv',
+                f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv",
+                f"all-genes_region_by_region_correlation_matrix_{metric}.tsv",
             ]
             for f in matrix_files:
                 filename = os.path.join(output_path, f)

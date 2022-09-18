@@ -5,7 +5,9 @@
 
 import argparse
 import os
+
 import yaml
+
 from nimgen.pipelines.htcondor import HTCondor
 
 
@@ -20,23 +22,25 @@ def parse_args():
         )
     )
     parser.add_argument(
-        "--create", "-c",
+        "--create",
+        "-c",
         dest="create",
         help=(
             "create a pipeline using a yaml configuration file."
             "Input should be the path to a valid yaml file specifying "
             "pipeline configuration."
-        )
+        ),
     )
     parser.add_argument(
-        "--run", "-r",
+        "--run",
+        "-r",
         dest="run",
         help=(
             "Create (if it has not been created yet) and run a pipeline"
             " using a yaml configuration file."
             "Input should be the path to a valid yaml file specifying "
             "pipeline configuration."
-        )
+        ),
     )
 
     return parser.parse_args()
@@ -107,12 +111,10 @@ def create_pipeline(config_dict):
     pipeline object
 
     """
-    valid_pipelines = {
-        "HTCondor": HTCondor
-    }
-    assert config_dict["pipeline"]["type"] in valid_pipelines.keys(), (
-        f"Only pipelines implemented are {valid_pipelines.keys()}!"
-    )
+    valid_pipelines = {"HTCondor": HTCondor}
+    assert (
+        config_dict["pipeline"]["type"] in valid_pipelines.keys()
+    ), f"Only pipelines implemented are {valid_pipelines.keys()}!"
     pipeline = valid_pipelines[config_dict["pipeline"]["type"]](config_dict)
     pipeline.create()
     return pipeline

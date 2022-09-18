@@ -8,15 +8,14 @@
 
 import logging
 import os
-
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from nilearn import image
 
-logger = logging.getLogger(name='nimgen')
+
+logger = logging.getLogger(name="nimgen")
 logger.setLevel(logging.INFO)
 # console = logging.StreamHandler()
 # logger.addHandler(console)
@@ -36,14 +35,9 @@ def remove_nii_extensions(nii_file):
 def read_csv_tsv(path):
     """Read both csv and tsv, file type inferred by extension."""
     _, ext = os.path.splitext(path)
-    extensions = {
-        ".csv": ",",
-        ".tsv": "\t"
-    }
+    extensions = {".csv": ",", ".tsv": "\t"}
 
-    return pd.read_csv(
-        path, index_col=0, sep=extensions[ext]
-    )
+    return pd.read_csv(path, index_col=0, sep=extensions[ext])
 
 
 def covariates_to_nifti(parcellation, covariates_df):
@@ -76,9 +70,7 @@ def covariates_to_nifti(parcellation, covariates_df):
         for label, value in covariate.iteritems():
             null_mat[parcellation_array == label + 1] = value
 
-        pc_nii = image.new_img_like(
-            parcellation, null_mat
-        )
+        pc_nii = image.new_img_like(parcellation, null_mat)
         pc_nii.header["cal_min"] = marker_min
         pc_nii.header["cal_max"] = marker_max
         covariate_niftis[covariate_label] = pc_nii
@@ -100,14 +92,13 @@ def _read_sign_genes(sign_genes):
                 header=None,
                 index_col=0,
                 dtype=str,
-                sep=extensions[ext]
+                sep=extensions[ext],
             ).index
         elif ext in [".txt"]:
             sign_genes = list(np.loadtxt(sign_genes, dtype=str))
     else:
         raise ValueError(
-            "'sign_genes' should be a pd.DataFrame,"
-            " .csv/.tsv or .txt file!"
+            "'sign_genes' should be a pd.DataFrame," " .csv/.tsv or .txt file!"
         )
 
     return list(sign_genes)

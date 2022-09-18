@@ -1,4 +1,3 @@
-
 RUN_IN_VENV = """#!/usr/bin/bash
 source {}/bin/activate
 python3 $@

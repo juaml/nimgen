@@ -8,10 +8,9 @@ import os
 from time import perf_counter
 
 import numpy as np
-from nilearn import image
-
-from brainsmash.workbench.geo import volume
 from brainsmash.mapgen.sampled import Sampled
+from brainsmash.workbench.geo import volume
+from nilearn import image
 
 from .utils import logger
 
@@ -53,8 +52,7 @@ def export_voxel_coordinates(parcellation_file, outpath):
     parcels = [data[tuple(i)] for i in ijk]
     # xyz = nib.affines.apply_affine(niimg.affine, ijk)
     # get mm coords
-    coords = image.coord_transform(
-        idx[0], idx[1], idx[2], niimg.affine)
+    coords = image.coord_transform(idx[0], idx[1], idx[2], niimg.affine)
     coords = np.vstack(coords).T
     # save files as a txt file
     np.savetxt(voxel_coord_file, coords, fmt="%s")
@@ -85,17 +83,17 @@ def generate_distance_matrices(
         corresponding files on disk. These files are used as inputs to
         `brainsmash.mapgen.sampled.Sampled`.
     """
-    voxel_coordinate_file = os.path.join(path, 'voxel_coordinates.txt')
+    voxel_coordinate_file = os.path.join(path, "voxel_coordinates.txt")
     print("Trying to generate distance matrices..")
     matrix_files = {
-        'D': os.path.join(path, 'distmat.npy'),
-        'index': os.path.join(path, 'index.npy')
+        "D": os.path.join(path, "distmat.npy"),
+        "index": os.path.join(path, "index.npy"),
     }
 
     # check distance_matrix_files, if there isn't any generate.
-    if os.path.isfile(
-        matrix_files["D"]
-    ) and os.path.isfile(matrix_files["index"]):
+    if os.path.isfile(matrix_files["D"]) and os.path.isfile(
+        matrix_files["index"]
+    ):
         logger.info("Distance matrix files already exist.")
         return matrix_files
 
@@ -108,11 +106,7 @@ def generate_distance_matrices(
 
 
 def generate_surrogate_map(
-    parcellation_file,
-    smap_id,
-    outpath,
-    voxel_parcel_file,
-    matrix_files
+    parcellation_file, smap_id, outpath, voxel_parcel_file, matrix_files
 ):
     """Randomly generate surrogate maps with matched spatial autocorrelation.
 
@@ -139,15 +133,13 @@ def generate_surrogate_map(
     smap_file = os.path.join(smaps_dir, f"{smap_id}_smap.nii")
 
     if os.path.isfile(smap_file):
-        logger.info(
-            f'{smap_file} already exists!'
-        )
+        logger.info(f"{smap_file} already exists!")
         return smap_file
 
     pc1 = perf_counter()
     gen = Sampled(
         x=voxel_parcel_file,
-        D=matrix_files['D'],
+        D=matrix_files["D"],
         index=matrix_files["index"],
         resample=True,
         n_jobs=1,

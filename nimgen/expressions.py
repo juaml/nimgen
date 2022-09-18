@@ -7,25 +7,20 @@
 # License: AGPL
 
 import os
-from pathlib import Path
 import warnings
+from pathlib import Path
 
+import abagen
+import nibabel as nib
 import numpy as np
 import pandas as pd
-from scipy import stats
 import pingouin as pg
+from nilearn import image, masking
+from scipy import stats
 from sklearn.decomposition import PCA
 
-import nibabel as nib
-import abagen
-from nilearn import image, masking
-
 from .statistics import _get_funcbyname
-from .utils import (
-    covariates_to_nifti,
-    _read_sign_genes,
-    logger,
-)
+from .utils import _read_sign_genes, covariates_to_nifti, logger
 
 
 def _save_expressions(exp, atlas):
@@ -35,12 +30,14 @@ def _save_expressions(exp, atlas):
     if os.access(save_path, os.W_OK):
         exp_fname = save_path / f"nimgen_{atlas_name}_expressions.csv"
         logger.info(
-            f"Saving expressions to nimgen_{atlas_name}_expressions.csv")
+            f"Saving expressions to nimgen_{atlas_name}_expressions.csv"
+        )
         exp.to_csv(exp_fname, sep=";", index=False)
     else:
         logger.info(
             "User does not have permissions to save "
-            f"to {save_path.as_posix()}")
+            f"to {save_path.as_posix()}"
+        )
 
 
 def _get_cached_results(atlas):
@@ -181,11 +178,8 @@ def gene_coexpression(parcellation, sign_genes, metric="spearman"):
 
 
 def correlation_analysis(
-        exp,
-        markers,
-        correlation_method,
-        partial_correlation,
-        covariates_df):
+    exp, markers, correlation_method, partial_correlation, covariates_df
+):
     """Apply correlation analysis for given gene expressions and markers.
 
     If partial correlation is False, performs normal correlation based on
@@ -224,9 +218,10 @@ def correlation_analysis(
             correlation_results_list.append(
                 pg.partial_corr(
                     gene_spec_data,
-                    x=gene, y="marker",
+                    x=gene,
+                    y="marker",
                     x_covar=covariates_df.columns,
-                    method=correlation_method
+                    method=correlation_method,
                 )
             )
         correlation_result = pd.concat(correlation_results_list)
@@ -234,10 +229,7 @@ def correlation_analysis(
 
         pval, r_score = correlation_result["p-val"], correlation_result["r"]
     else:
-        corr_funcs = {
-            'spearman': stats.spearmanr,
-            'pearson': stats.pearsonr
-        }
+        corr_funcs = {"spearman": stats.spearmanr, "pearson": stats.pearsonr}
         corr_func = corr_funcs[correlation_method]
 
         correlation_result = exp.apply(
@@ -257,12 +249,12 @@ def get_gene_expression(
     allen_data_dir=None,
     save_expressions=True,
     force_recompute=False,
-    correlation_method='spearman',
+    correlation_method="spearman",
     alpha=0.05,
     perform_pca=False,
     pca_dict=None,
     partial_correlation=False,
-    custom_covariates_df=None
+    custom_covariates_df=None,
 ):
     """Get the genes expressed that correlate with the specified markers.
 
@@ -329,7 +321,7 @@ def get_gene_expression(
         atlas,
         force_recompute=force_recompute,
         allen_data_dir=allen_data_dir,
-        save_expressions=save_expressions
+        save_expressions=save_expressions,
     )
     exp_no_nan, marker_no_nan = expressions[good_rois], marker[good_rois]
 
@@ -347,7 +339,7 @@ def get_gene_expression(
             bad_rois,
             perform_pca,
             pca_dict,
-            custom_covariates_df
+            custom_covariates_df,
         )
     elif perform_pca and (custom_covariates_df is not None):
         warnings.warn(
@@ -363,15 +355,11 @@ def get_gene_expression(
         marker_no_nan,
         correlation_method,
         partial_correlation,
-        covariates_df
+        covariates_df,
     )
 
     all_genes = pd.DataFrame(
-        {
-            "genes": pval.index,
-            "pval": pval.values,
-            "r_score": r_score
-        }
+        {"genes": pval.index, "pval": pval.values, "r_score": r_score}
     ).set_index("genes")
 
     sign_genes = all_genes[all_genes.pval < alpha]
@@ -448,14 +436,15 @@ def _aggregate_marker(atlas, vbm, aggregation=None, limits=None):
     for i_roi, roi in enumerate(rois):
         mask = image.math_img(f"img=={roi}", img=atlas_nifti)
         marker = masking.apply_mask(
-            imgs=vbm_nifti, mask_img=mask)  # gmd per roi
+            imgs=vbm_nifti, mask_img=mask
+        )  # gmd per roi
         # logger.info(f'Mask applied for roi {roi}.')
         # aggregate (for all aggregation options in list)
         for agg_name in aggregation:
             # logger.info(f'Aggregate GMD in roi {roi} using {agg_name}.')
             agg_func = _get_funcbyname(
-                agg_name, agg_func_params.get(
-                    agg_name, None))
+                agg_name, agg_func_params.get(agg_name, None)
+            )
             marker_aggregated[agg_name][i_roi] = agg_func(marker)
     logger.info(f"{aggregation} was computed for all {n_rois} ROIs.\n")
 
@@ -467,7 +456,7 @@ def _prepare_expressions(
     atlas,
     force_recompute=False,
     allen_data_dir=None,
-    save_expressions=True
+    save_expressions=True,
 ):
     """Prepare parcellated gene expressions and marker.
 

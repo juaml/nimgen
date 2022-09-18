@@ -5,6 +5,7 @@
 
 import os
 import tempfile
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -23,10 +24,7 @@ def test_remove_nii_extensions():
 def test_read_csv_tsv():
     """Test read_csv_tsv."""
     mock_df = pd.DataFrame(
-        {
-            "col1": [x for x in range(5)],
-            "col2": [x for x in range(5)]
-        }
+        {"col1": [x for x in range(5)], "col2": [x for x in range(5)]}
     )
 
     # test csv
@@ -50,10 +48,7 @@ def test_read_sign_genes():
     """Test read_sign_genes."""
     sign_genes = [f"gene{x}" for x in range(5)]
     mock_df = pd.DataFrame(
-        {
-            "col1": [x for x in range(5)],
-            "col2": [x for x in range(5)]
-        }
+        {"col1": [x for x in range(5)], "col2": [x for x in range(5)]}
     )
     mock_df.index = sign_genes
 

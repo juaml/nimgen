@@ -3,7 +3,7 @@
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 # License: AGPL
 
-__version__ = '0.1.dev'
+__version__ = "0.1.dev"
 
 from . import base
 from . import base_steps

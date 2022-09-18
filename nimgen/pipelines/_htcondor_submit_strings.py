@@ -1,4 +1,3 @@
-
 TEMPLATE_DAG = """
 JOB  A  step_1.submit
 JOB  B  step_2.submit

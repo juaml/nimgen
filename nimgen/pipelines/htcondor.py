@@ -5,17 +5,19 @@
 
 import os
 from itertools import product
+
 from nimgen.utils import remove_nii_extensions
+
 from ._htcondor_python_strings import (
+    RUN_IN_VENV,
     STEP_ONE_FSTRING,
-    STEP_TWO_FSTRING,
     STEP_THREE_FSTRING,
-    RUN_IN_VENV
+    STEP_TWO_FSTRING,
 )
 from ._htcondor_submit_strings import (
     TEMPLATE_DAG,
     TEMPLATE_JOB,
-    TEMPLATE_QUEUED_JOB
+    TEMPLATE_QUEUED_JOB,
 )
 from .base import Pipeline
 
@@ -61,18 +63,12 @@ class HTCondor(Pipeline):
         marker_dir = os.path.join(self.project_path, self.marker_dir)
 
         step_args = [
-            (
-                STEP_ONE_FSTRING,
-                ["placeholder"]
-            ),
-            (
-                STEP_TWO_FSTRING,
-                [marker_dir, output_dir, allen_data_dir]
-            ),
+            (STEP_ONE_FSTRING, ["placeholder"]),
+            (STEP_TWO_FSTRING, [marker_dir, output_dir, allen_data_dir]),
             (
                 STEP_THREE_FSTRING,
-                [marker_dir, output_dir, allen_data_dir, self.r_path]
-            )
+                [marker_dir, output_dir, allen_data_dir, self.r_path],
+            ),
         ]
         pipeline_dir = os.path.join(self.project_path, self.pipeline_dir)
         step_file = os.path.join(pipeline_dir, f"step_{step}.py")
@@ -84,8 +80,10 @@ class HTCondor(Pipeline):
     def prepare_submit_files(self):
         """Prepare submit files to submit the pipeline to HTCondor as a DAG."""
 
-        for parcellation, (_,
-                           markers) in self.parcellation_marker_dict.items():
+        for parcellation, (
+            _,
+            markers,
+        ) in self.parcellation_marker_dict.items():
 
             submit_parc_dir = self._prepare_submit_parc_dir(parcellation)
             run_dir = self._prepare_run_dir(submit_parc_dir)
@@ -115,7 +113,7 @@ class HTCondor(Pipeline):
             self.project_path,
             self.parcellations_dir,
             parcellation,
-            parc_file_name
+            parc_file_name,
         )
 
         submit_file = os.path.join(run_dir, f"step_{step}.submit")
@@ -137,7 +135,7 @@ class HTCondor(Pipeline):
                 self.correlation_method,
                 self.alpha,
                 self.n_pca_covariates,
-            ]
+            ],
         ]
 
         with open(submit_file, "a") as f:
@@ -147,9 +145,8 @@ class HTCondor(Pipeline):
             for arg_tuple in product(*args):
                 job_id = "_".join([f"step_{step}", parc_file_name])
                 arguments = " ".join(
-                    [
-                        f"./run_in_venv.sh step_{step}.py"
-                    ] + [str(x) for x in arg_tuple]
+                    [f"./run_in_venv.sh step_{step}.py"]
+                    + [str(x) for x in arg_tuple]
                 )
                 check_params = [x for x in arg_tuple]
                 if not self._output_exists(step, *check_params):
@@ -167,7 +164,8 @@ class HTCondor(Pipeline):
         _, parcellation_head = os.path.split(parcellation)
         parcellation_name = remove_nii_extensions(parcellation_head)
         submit_parc_dir = os.path.join(
-            self.submit_files_dir, parcellation_name)
+            self.submit_files_dir, parcellation_name
+        )
 
         if not os.path.isdir(submit_parc_dir):
             os.mkdir(submit_parc_dir)

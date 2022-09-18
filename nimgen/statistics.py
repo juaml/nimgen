@@ -90,7 +90,8 @@ def _get_funcbyname(name, func_params):
             logger.info(f"Limits for winsorized mean are set to {limits}.")
         else:
             raise ValueError(
-                "Limits for the winsorized mean must be between 0 and 1.")
+                "Limits for the winsorized mean must be between 0 and 1."
+            )
         # partially interpret func_params
         return partial(winsorized_mean, **func_params)
     if name == "mean":
@@ -103,4 +104,5 @@ def _get_funcbyname(name, func_params):
     else:
         raise ValueError(
             f"Function {name} unknown. Please provide any of "
-            f"{_valid_func_names}")
+            f"{_valid_func_names}"
+        )
