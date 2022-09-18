@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Fill in this form if you want that junifer includes a new feature.
- - type: textarea
+  - type: textarea
     id: description
     attributes:
       label: Which feature do you want to include?

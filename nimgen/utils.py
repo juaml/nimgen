@@ -7,7 +7,6 @@
 # License: AGPL
 
 import logging
-import json
 import os
 
 from pathlib import Path
@@ -24,19 +23,6 @@ logger.setLevel(logging.INFO)
 logger.propagate = False
 
 
-def save_as_json(data, file):
-    """Save data dictionary as a file."""
-    with open('data.txt', 'w'):
-        json.dump(data, file, sort_keys=True, indent=4,
-                  ensure_ascii=False)
-
-
-def raise_error(error):
-    """Raise an error."""
-    logger.error(error)
-    raise
-
-
 def remove_nii_extensions(nii_file):
     """Remove file extension from .nii or nii.gz path."""
     nii_name = Path(nii_file)
@@ -44,7 +30,7 @@ def remove_nii_extensions(nii_file):
     while nii_name.suffix in {".nii", ".gz"}:
         nii_name = nii_name.with_suffix("")
 
-    return nii_name
+    return str(nii_name)
 
 
 def read_csv_tsv(path):
@@ -77,6 +63,9 @@ def covariates_to_nifti(parcellation, covariates_df):
         A dictionary contains niimg-like object for each covariate.
 
     """
+    if os.path.isfile(parcellation):
+        parcellation = image.load_img(parcellation)
+
     parcellation_array = np.array(parcellation.dataobj)
     covariate_niftis = {}
     for covariate_label, covariate in covariates_df.items():
@@ -100,7 +89,9 @@ def covariates_to_nifti(parcellation, covariates_df):
 def _read_sign_genes(sign_genes):
     if isinstance(sign_genes, pd.DataFrame):
         sign_genes = sign_genes.index
-    elif not isinstance(sign_genes, pd.DataFrame):
+    elif isinstance(sign_genes, list):
+        return sign_genes
+    elif os.path.isfile(sign_genes):
         _, ext = os.path.splitext(sign_genes)
         if ext in [".csv", ".tsv"]:
             extensions = {".csv": ",", ".tsv": "\t"}
@@ -113,18 +104,10 @@ def _read_sign_genes(sign_genes):
             ).index
         elif ext in [".txt"]:
             sign_genes = list(np.loadtxt(sign_genes, dtype=str))
-        else:
-            raise ValueError(
-                "'sign_genes' should be a pd.DataFrame,"
-                " .csv/.tsv or .txt file!"
-            )
+    else:
+        raise ValueError(
+            "'sign_genes' should be a pd.DataFrame,"
+            " .csv/.tsv or .txt file!"
+        )
 
     return list(sign_genes)
-
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes."""
-
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__

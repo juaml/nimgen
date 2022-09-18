@@ -33,7 +33,7 @@ body:
       4. See error...
   validations:
     required: true
- type: textarea
+- type: textarea
   id: logs
   attributes:
     label: Relevant log output

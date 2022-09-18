@@ -139,7 +139,7 @@ def generate_surrogate_map(
     smap_file = os.path.join(smaps_dir, f"{smap_id}_smap.nii")
 
     if os.path.isfile(smap_file):
-        logger.log(
+        logger.info(
             f'{smap_file} already exists!'
         )
         return smap_file

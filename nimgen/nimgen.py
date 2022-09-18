@@ -110,10 +110,10 @@ def create_pipeline(config_dict):
     valid_pipelines = {
         "HTCondor": HTCondor
     }
-    assert config_dict["pipeline"] in valid_pipelines.keys(), (
+    assert config_dict["pipeline"]["type"] in valid_pipelines.keys(), (
         f"Only pipelines implemented are {valid_pipelines.keys()}!"
     )
-    pipeline = valid_pipelines[config_dict["pipeline"]](config_dict)
+    pipeline = valid_pipelines[config_dict["pipeline"]["type"]](config_dict)
     pipeline.create()
     return pipeline
 

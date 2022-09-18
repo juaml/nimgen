@@ -5,7 +5,7 @@ from functools import partial
 import numpy as np
 from scipy.stats.mstats import winsorize
 
-from .utils import logger, raise_error
+from .utils import logger
 
 
 def empirical_pval(stat, stat0):
@@ -89,7 +89,7 @@ def _get_funcbyname(name, func_params):
         if all((lim >= 0.0 and lim <= 1) for lim in limits):
             logger.info(f"Limits for winsorized mean are set to {limits}.")
         else:
-            raise_error(
+            raise ValueError(
                 "Limits for the winsorized mean must be between 0 and 1.")
         # partially interpret func_params
         return partial(winsorized_mean, **func_params)
@@ -101,6 +101,6 @@ def _get_funcbyname(name, func_params):
         return np.median
 
     else:
-        raise_error(
+        raise ValueError(
             f"Function {name} unknown. Please provide any of "
             f"{_valid_func_names}")

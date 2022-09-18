@@ -354,6 +354,8 @@ def get_gene_expression(
             "Partial_correlation is set to False, but either perform_pca is "
             "set to True or custom_covariates_df is not None!"
         )
+    else:
+        covariates_df = None
 
     # perform mass-univariate correlation analysis
     pval, r_score = correlation_analysis(
