@@ -1,60 +1,47 @@
+"""Utility functions commonly used in a variety of modules."""
+
 # Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
+#          Leonard Sasse <l.sasse@fz-juelich.de>
 #          Sami Hamdan <s.hamdan@fz-juelich.de>
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 # License: AGPL
-import logging
-import json
-import os
 
+import logging
+import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from nilearn import image
 
-logger = logging.getLogger(name='nimgen')
+
+logger = logging.getLogger(name="nimgen")
 logger.setLevel(logging.INFO)
 # console = logging.StreamHandler()
 # logger.addHandler(console)
 logger.propagate = False
 
 
-def save_as_json(data, file):
-    with open('data.txt', 'w'):
-        json.dump(data, file, sort_keys=True, indent=4,
-                  ensure_ascii=False)
-
-
-def raise_error(error):
-    logger.error(error)
-    raise
-
-
 def remove_nii_extensions(nii_file):
+    """Remove file extension from .nii or nii.gz path."""
     nii_name = Path(nii_file)
 
     while nii_name.suffix in {".nii", ".gz"}:
         nii_name = nii_name.with_suffix("")
 
-    return nii_name
+    return str(nii_name)
 
 
 def read_csv_tsv(path):
+    """Read both csv and tsv, file type inferred by extension."""
     _, ext = os.path.splitext(path)
-    extensions = {
-        ".csv": ",",
-        ".tsv": "\t"
-    }
+    extensions = {".csv": ",", ".tsv": "\t"}
 
-    return pd.read_csv(
-        path, index_col=0, sep=extensions[ext]
-    )
+    return pd.read_csv(path, index_col=0, sep=extensions[ext])
 
 
 def covariates_to_nifti(parcellation, covariates_df):
-    """
-    Creates nifti images for given PCA covariates.
+    """Create nifti images for given PCA covariates.
 
     Parameters
     ----------
@@ -68,7 +55,11 @@ def covariates_to_nifti(parcellation, covariates_df):
     -------
     covariate_niftis : dict
         A dictionary contains niimg-like object for each covariate.
+
     """
+    if os.path.isfile(parcellation):
+        parcellation = image.load_img(parcellation)
+
     parcellation_array = np.array(parcellation.dataobj)
     covariate_niftis = {}
     for covariate_label, covariate in covariates_df.items():
@@ -79,9 +70,7 @@ def covariates_to_nifti(parcellation, covariates_df):
         for label, value in covariate.iteritems():
             null_mat[parcellation_array == label + 1] = value
 
-        pc_nii = image.new_img_like(
-            parcellation, null_mat
-        )
+        pc_nii = image.new_img_like(parcellation, null_mat)
         pc_nii.header["cal_min"] = marker_min
         pc_nii.header["cal_max"] = marker_max
         covariate_niftis[covariate_label] = pc_nii
@@ -92,7 +81,9 @@ def covariates_to_nifti(parcellation, covariates_df):
 def _read_sign_genes(sign_genes):
     if isinstance(sign_genes, pd.DataFrame):
         sign_genes = sign_genes.index
-    elif not isinstance(sign_genes, pd.DataFrame):
+    elif isinstance(sign_genes, list):
+        return sign_genes
+    elif os.path.isfile(sign_genes):
         _, ext = os.path.splitext(sign_genes)
         if ext in [".csv", ".tsv"]:
             extensions = {".csv": ",", ".tsv": "\t"}
@@ -101,21 +92,13 @@ def _read_sign_genes(sign_genes):
                 header=None,
                 index_col=0,
                 dtype=str,
-                sep=extensions[ext]
+                sep=extensions[ext],
             ).index
         elif ext in [".txt"]:
             sign_genes = list(np.loadtxt(sign_genes, dtype=str))
-        else:
-            raise ValueError(
-                "'sign_genes' should be a pd.DataFrame,"
-                " .csv/.tsv or .txt file!"
-            )
+    else:
+        raise ValueError(
+            "'sign_genes' should be a pd.DataFrame," " .csv/.tsv or .txt file!"
+        )
 
     return list(sign_genes)
-
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__

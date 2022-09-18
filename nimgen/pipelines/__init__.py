@@ -5,9 +5,8 @@
 
 __version__ = "0.1.dev"
 
-from . import expressions  # noqa
-from . import smash  # noqa
-from . import utils  # noqa
-
-from .expressions import *
-from .smash import *
+from . import base
+from . import base_steps
+from . import htcondor
+from . import _htcondor_python_strings
+from . import _htcondor_submit_strings

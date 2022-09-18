@@ -1,128 +1,74 @@
+"""Define HTCondor pipeline."""
+
+# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
+
 import os
-import shutil
-from ._htcondor_file_strings import (
+from itertools import product
+
+from nimgen.utils import remove_nii_extensions
+
+from ._htcondor_python_strings import (
+    RUN_IN_VENV,
     STEP_ONE_FSTRING,
-    STEP_TWO_FSTRING,
     STEP_THREE_FSTRING,
+    STEP_TWO_FSTRING,
 )
-from ..utils import remove_nii_extensions
+from ._htcondor_submit_strings import (
+    TEMPLATE_DAG,
+    TEMPLATE_JOB,
+    TEMPLATE_QUEUED_JOB,
+)
+from .base import Pipeline
 
 
-class HTCondor:
-    """ Object to create and run a nimgen pipeline on a HTCondor cluster.
+class HTCondor(Pipeline):
+    """Object to create and run a nimgen pipeline on a HTCondor cluster.
 
+    Parameters
+    -----------
+    config_dict : dict
+        dictionary with valid pipeline configurations.
     """
 
-    def __init__(self, config_dict):
-        """ Initialise HTCondor pipeline.
-
-        Parameters
-        -----------
-        config_dict : dict
-            dictionary with valid pipeline configurations.
-
-        """
-        self.project_path = os.path.abspath(config_dict["project_path"])
-
-        self.pipeline_type = config_dict["pipeline"]
-        self.submit_files_dir = config_dict["submit_files_dir"]
-        self.pipeline_dir = config_dict["pipeline_dir"]
-        self.marker_dir = config_dict["marker_dir"]
-        self.output_dir = config_dict["output_dir"]
-        self.parcellations_dir = "parcellations"
-        self.config_dict = config_dict
-        self.parcellation_marker_dict = {}
-        self.r_path = os.path.abspath(config_dict["r_path"])
-
-        if not os.path.isdir(self.project_path):
-            raise FileNotFoundError(f"{self.project_path} not found!")
-
-        if not os.path.isdir(self.marker_dir):
-            alternatively = os.path.join(self.project_path, self.marker_dir)
-            if not os.path.isdir(alternatively):
-                raise FileNotFoundError(f"{self.marker_dir} not found!")
-            else:
-                self.marker_dir = os.path.abspath(alternatively)
+    def __init__(self, config_dict, submit_files_dir="submit_files"):
+        """Initialise HTCondor pipeline."""
+        super().__init__(**config_dict)
+        self.submit_files_dir = submit_files_dir
+        directory = os.path.join(self.project_path, self.submit_files_dir)
+        if not os.path.isdir(directory):
+            print(f"Creating {directory}")
+            os.mkdir(directory)
         else:
-            self.marker_dir = os.path.abspath(self.marker_dir)
-
-        for dir in [
-            self.submit_files_dir, self.output_dir,
-            self.pipeline_dir, self.parcellations_dir
-        ]:
-            dir = os.path.join(self.project_path, dir)
-            if not os.path.isdir(dir):
-                print(f"Creating {dir}")
-                os.mkdir(dir)
-            else:
-                print(f"{dir} already exists! Skipping creation of dir {dir}")
-
-        for parcellation_file in config_dict["parcellation_files"].keys():
-            if not os.path.isfile(parcellation_file):
-                FileNotFoundError(f"{parcellation_file} not found!")
-            else:
-                _, this_parc = os.path.split(
-                    remove_nii_extensions(parcellation_file)
-                )
-                self.parcellation_marker_dict[this_parc] = config_dict[
-                    "parcellation_files"
-                ][parcellation_file]
-                dir_this_parc = os.path.join(
-                    self.parcellations_dir, this_parc
-                )
-                smaps_dir = os.path.join(dir_this_parc, "smaps")
-                if not os.path.isdir(dir_this_parc):
-                    print(f"Creating {dir_this_parc}")
-                    os.mkdir(dir_this_parc)
-                    os.mkdir(smaps_dir)
-                else:
-                    print(
-                        f"{dir_this_parc} already exists!"
-                        f" Skipping creation of dir {dir}"
-                    )
-                    if not os.path.isdir(smaps_dir):
-                        os.mkdir(smaps_dir)
-
-                _, tail = os.path.split(parcellation_file)
-                parc_file_new = os.path.join(dir_this_parc, tail)
-                if not os.path.isfile(parc_file_new):
-                    print(
-                        f"Copying from {parcellation_file} to {dir_this_parc}"
-                    )
-                    shutil.copyfile(parcellation_file, parc_file_new)
-                else:
-                    print(f"{parc_file_new} already exists. Skipping copy.")
-
-        for _, markers in self.parcellation_marker_dict.items():
-            for marker_file in markers:
-                current_marker = os.path.join(self.marker_dir, marker_file)
-                if not os.path.isfile(current_marker):
-                    raise FileNotFoundError(
-                        "Marker files are interpreted relative to marker_dir."
-                        f"({self.marker_dir})"
-                    )
+            print(
+                f"{directory} already exists!"
+                f"Skipping creation of dir {directory}"
+            )
 
     def prepare_run_in_venv(self):
-        pass
+        """Prepare a bash file to source a python venv for the pipeline."""
+
+        run_in_venv = os.path.join(
+            self.project_path, self.pipeline_dir, "run_in_venv.sh"
+        )
+        with open(run_in_venv, "w") as f:
+            f.write(RUN_IN_VENV.format(self.path_to_venv))
+        os.system(f"chmod +x {run_in_venv}")
 
     def prepare_step(self, step):
+        """Prepare a python3 file for a given step in the pipeline."""
         _, name_marker_dir = os.path.split(self.marker_dir)
-        name_output_dir = self.output_dir
-        allen_data_dir = os.path.join(self.project_path, "allen_data_dir")
+        output_dir = os.path.join(self.project_path, self.output_dir)
+        allen_data_dir = self.allen_data_dir
+        marker_dir = os.path.join(self.project_path, self.marker_dir)
 
         step_args = [
-            (
-                STEP_ONE_FSTRING,
-                ["placeholder"]
-            ),
-            (
-                STEP_TWO_FSTRING,
-                [name_marker_dir, name_output_dir, allen_data_dir]
-            ),
+            (STEP_ONE_FSTRING, ["placeholder"]),
+            (STEP_TWO_FSTRING, [marker_dir, output_dir, allen_data_dir]),
             (
                 STEP_THREE_FSTRING,
-                [name_marker_dir, name_output_dir, allen_data_dir, self.r_path]
-            )
+                [marker_dir, output_dir, allen_data_dir, self.r_path],
+            ),
         ]
         pipeline_dir = os.path.join(self.project_path, self.pipeline_dir)
         step_file = os.path.join(pipeline_dir, f"step_{step}.py")
@@ -132,9 +78,118 @@ class HTCondor:
                 f.write(fstring.format(*args))
 
     def prepare_submit_files(self):
-        pass
+        """Prepare submit files to submit the pipeline to HTCondor as a DAG."""
+
+        for parcellation, (
+            _,
+            markers,
+        ) in self.parcellation_marker_dict.items():
+
+            submit_parc_dir = self._prepare_submit_parc_dir(parcellation)
+            run_dir = self._prepare_run_dir(submit_parc_dir)
+            self._prepare_dag(run_dir)
+            for marker in markers:
+                print(parcellation, marker)
+                self.create_output_dirs(parcellation, marker)
+
+            for step in range(1, 4):
+                job_count = self._prepare_submit_file(
+                    step, run_dir, parcellation
+                )
+                print(f"{job_count} jobs registered for step {step}.")
+
+    def _prepare_submit_file(self, step, run_dir, parcellation):
+
+        logs = os.path.abspath(os.path.join(run_dir, "logs"))
+        initial_dir = os.path.join(self.project_path, self.pipeline_dir)
+        n_cpus = self.pipeline[f"step_{step}"]["CPU"]
+        memory = self.pipeline[f"step_{step}"]["MEMORY"]
+        disk = self.pipeline[f"step_{step}"]["DISK"]
+        parc_file_name = self.parcellation_marker_dict[parcellation][0]
+        marker_files = [
+            x for x in self.parcellation_marker_dict[parcellation][1]
+        ]
+        parcellation_file = os.path.join(
+            self.project_path,
+            self.parcellations_dir,
+            parcellation,
+            parc_file_name,
+        )
+
+        submit_file = os.path.join(run_dir, f"step_{step}.submit")
+        with open(submit_file, "w") as f:
+            f.write(TEMPLATE_JOB.format(initial_dir, n_cpus, memory, disk))
+
+        step_params = [
+            [[parcellation_file]],
+            [
+                [parcellation_file],
+                marker_files,
+                range(self.n_surrogate_maps),
+                self.correlation_method,
+                self.n_pca_covariates,
+            ],
+            [
+                [parcellation_file],
+                marker_files,
+                self.correlation_method,
+                self.alpha,
+                self.n_pca_covariates,
+            ],
+        ]
+
+        with open(submit_file, "a") as f:
+
+            job_count = 0
+            args = step_params[step - 1]
+            for arg_tuple in product(*args):
+                job_id = "_".join([f"step_{step}", parc_file_name])
+                arguments = " ".join(
+                    [f"./run_in_venv.sh step_{step}.py"]
+                    + [str(x) for x in arg_tuple]
+                )
+                check_params = [x for x in arg_tuple]
+                if not self._output_exists(step, *check_params):
+                    f.write(
+                        TEMPLATE_QUEUED_JOB.format(
+                            arguments, logs=logs, job_id=job_id
+                        )
+                    )
+                    job_count += 1
+
+        return job_count
+
+    def _prepare_submit_parc_dir(self, parcellation):
+
+        _, parcellation_head = os.path.split(parcellation)
+        parcellation_name = remove_nii_extensions(parcellation_head)
+        submit_parc_dir = os.path.join(
+            self.submit_files_dir, parcellation_name
+        )
+
+        if not os.path.isdir(submit_parc_dir):
+            os.mkdir(submit_parc_dir)
+
+        return submit_parc_dir
+
+    def _prepare_run_dir(self, submit_parc_dir):
+
+        runs = [x for x in os.listdir(submit_parc_dir) if "run" in x]
+        run = len(runs) + 1
+        run_dir = os.path.join(submit_parc_dir, f"run_{run}")
+        logs_dir = os.path.join(run_dir, "logs")
+        for directory in [run_dir, logs_dir]:
+            os.mkdir(directory)
+
+        return run_dir
+
+    def _prepare_dag(self, run_dir):
+        nimgen_dag = os.path.join(run_dir, "nimgen.dag")
+        with open(nimgen_dag, "w") as f:
+            f.write(TEMPLATE_DAG)
 
     def create(self):
+        """Create the pipeline."""
         self.prepare_run_in_venv()
         for step in range(1, 4):
             self.prepare_step(step)

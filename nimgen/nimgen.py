@@ -1,11 +1,18 @@
+"""Console script for CLI."""
+
+# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
+
 import argparse
 import os
+
 import yaml
+
 from nimgen.pipelines.htcondor import HTCondor
 
 
 def parse_args():
-    """ Initialise the CLI script by parsing arguments. """
+    """Initialise the CLI script by parsing arguments."""
 
     parser = argparse.ArgumentParser(
         description=(
@@ -15,31 +22,32 @@ def parse_args():
         )
     )
     parser.add_argument(
-        "--create", "-c",
+        "--create",
+        "-c",
         dest="create",
         help=(
             "create a pipeline using a yaml configuration file."
             "Input should be the path to a valid yaml file specifying "
             "pipeline configuration."
-        )
+        ),
     )
     parser.add_argument(
-        "--run", "-r",
+        "--run",
+        "-r",
         dest="run",
         help=(
             "Create (if it has not been created yet) and run a pipeline"
             " using a yaml configuration file."
             "Input should be the path to a valid yaml file specifying "
             "pipeline configuration."
-        )
+        ),
     )
 
     return parser.parse_args()
 
 
 def validate_args(args):
-    """ Check that values for keyword arguments are valid, return the correct
-    path to a pipeline yaml file.
+    """Check that values for keyword arguments are valid.
 
     Parameters
     ----------
@@ -70,7 +78,7 @@ def validate_args(args):
 
 
 def yaml_to_dict(path_to_file):
-    """ Read yaml file with pipeline specifications.
+    """Read yaml file with pipeline specifications.
 
     Parameters
     ----------
@@ -91,8 +99,7 @@ def yaml_to_dict(path_to_file):
 
 
 def create_pipeline(config_dict):
-    """ Take configuration dict and construct and return the appropriate
-     pipeline object
+    """Take configuration dict and construct and return pipeline object.
 
     Parameters
     ----------
@@ -104,19 +111,17 @@ def create_pipeline(config_dict):
     pipeline object
 
     """
-    valid_pipelines = {
-        "HTCondor": HTCondor
-    }
-    assert config_dict["pipeline"] in valid_pipelines.keys(), (
-        f"Only pipelines implemented are {valid_pipelines.keys()}!"
-    )
-    pipeline = valid_pipelines[config_dict["pipeline"]](config_dict)
+    valid_pipelines = {"HTCondor": HTCondor}
+    assert (
+        config_dict["pipeline"]["type"] in valid_pipelines.keys()
+    ), f"Only pipelines implemented are {valid_pipelines.keys()}!"
+    pipeline = valid_pipelines[config_dict["pipeline"]["type"]](config_dict)
     pipeline.create()
     return pipeline
 
 
 def main():
-
+    """Run nimgen CLI."""
     args = parse_args()
     print("You are running the nimgen CLI!")
     yaml_file = validate_args(args)
