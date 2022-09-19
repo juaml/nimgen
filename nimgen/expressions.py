@@ -1,6 +1,7 @@
 """Fetch gene expression data from AHBA and run mass-univariate analysis."""
 
 # Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
+#          Leonard Sasse <l.sasse@fz-juelich.de>
 #          Sami Hamdan <s.hamdan@fz-juelich.de>
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 #          Kaustubh Patil <k.patil@fz-juelich.de>
@@ -20,15 +21,21 @@ from scipy import stats
 from sklearn.decomposition import PCA
 
 from .statistics import _get_funcbyname
-from .utils import _read_sign_genes, covariates_to_nifti, logger
+from .utils import (
+    _read_sign_genes,
+    covariates_to_nifti,
+    logger,
+    remove_nii_extensions,
+)
 
 
 def _save_expressions(exp, atlas):
     logger.info("Trying to save expressions")
-    save_path = atlas.parent
-    atlas_name = atlas.stem
+    save_path, atlas_name = os.path.split(remove_nii_extensions(atlas))
     if os.access(save_path, os.W_OK):
-        exp_fname = save_path / f"nimgen_{atlas_name}_expressions.csv"
+        exp_fname = os.path.join(
+            save_path, f"nimgen_{atlas_name}_expressions.csv"
+        )
         logger.info(
             f"Saving expressions to nimgen_{atlas_name}_expressions.csv"
         )
@@ -41,16 +48,14 @@ def _save_expressions(exp, atlas):
 
 
 def _get_cached_results(atlas):
-    if not isinstance(atlas, Path):
-        atlas = Path(atlas)
-    exp_path = atlas.parent
-    atlas_name = atlas.stem
-    exp_fname = exp_path / f"nimgen_{atlas_name}_expressions.csv"
+    exp_path, atlas_name = os.path.split(remove_nii_extensions(atlas))
+    exp_fname = os.path.join(exp_path, f"nimgen_{atlas_name}_expressions.csv")
     exp = None
-    if exp_fname.exists():
-        logger.info(f"Reading expressions from {exp_fname.as_posix()}")
-
+    if os.path.isfile(exp_fname):
+        logger.info(f"Reading expressions from {exp_fname}")
         exp = pd.read_csv(exp_fname, sep=";")
+    else:
+        logger.info("No cached results...")
     return exp
 
 
@@ -60,7 +65,7 @@ def apply_pca(exp, pca_dict=None):
 
     Parameters
     ----------
-    exp : np.ndarray or pandas.Series or pandas.DataFrame
+    exp : np.ndarray or pandas.DataFrame
         Gene expression values ROIxGenes
     pca_dict : dict
         PCA parameters i.e. n_components
@@ -73,8 +78,11 @@ def apply_pca(exp, pca_dict=None):
     if pca_dict is None:
         pca_dict = {"n_components": 5}
 
+    if isinstance(exp, pd.DataFrame):
+        exp = exp.values
+
     pca = PCA(**pca_dict)
-    covariates = pca.fit_transform(exp.values.copy())
+    covariates = pca.fit_transform(exp.copy())
     covariates_df = pd.DataFrame(covariates)
     covariates_df.columns = [
         f"covariate-{(int(i)+1)}" for i, _ in enumerate(covariates_df)
@@ -106,11 +114,13 @@ def correlated_gene_expression(parcellation, sign_genes, metric="spearman"):
         A dataframe (ROIxROI matrix) contains correlation score for each ROI.
     """
     exp_with_nans = _get_cached_results(parcellation)
-    if isinstance(sign_genes, str):
+    if isinstance(sign_genes, str) and not (os.path.isfile(sign_genes)):
         if sign_genes in ["all"]:
             sign_genes_expression = exp_with_nans
         else:
-            raise ValueError("if 'sign_genes' is a str it should be 'all'!")
+            raise ValueError(
+                "if 'sign_genes' is a str it should be 'all' or path to file!"
+            )
     else:
         sign_genes = _read_sign_genes(sign_genes)
 

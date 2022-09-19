@@ -24,7 +24,11 @@ from .base import _specific_marker_output
 
 
 def _save_correlation_matrices(
-    parcellation_file, significant_genes, output_path, metric="spearman"
+    parcellation_file,
+    significant_genes,
+    output_path,
+    specific_marker_output,
+    metric="spearman",
 ):
 
     # calculate gene co-expression based on significant genes
@@ -33,14 +37,6 @@ def _save_correlation_matrices(
     )
     coexp_matrix = gene_coexpression(
         parcellation_file, significant_genes, metric=metric
-    )
-
-    # calculate gene co-expression based on all genes
-    corr_all_gene_exp_matrix = correlated_gene_expression(
-        parcellation_file, "all", metric=metric
-    )
-    coexp_all_matrix = gene_coexpression(
-        parcellation_file, "all", metric=metric
     )
 
     # save as csv in the output path
@@ -62,20 +58,25 @@ def _save_correlation_matrices(
     )
 
     # save matrices based on all genes
-    coexp_all_matrix.to_csv(
-        os.path.join(
-            output_path,
-            f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv",
-        ),
-        sep="\t",
+    all_gene_coexp = os.path.join(
+        specific_marker_output,
+        f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv",
     )
-    corr_all_gene_exp_matrix.to_csv(
-        os.path.join(
-            output_path,
-            f"all-genes_region_by_region_correlation_matrix_{metric}.tsv",
-        ),
-        sep="\t",
+    if not os.path.isfile(all_gene_coexp):
+        coexp_all_matrix = gene_coexpression(
+            parcellation_file, "all", metric=metric
+        )
+        coexp_all_matrix.to_csv(all_gene_coexp, sep="\t")
+
+    all_genes_roixroi = os.path.join(
+        specific_marker_output,
+        f"all-genes_region_by_region_correlation_matrix_{metric}.tsv",
     )
+    if not os.path.isfile(all_genes_roixroi):
+        corr_all_gene_exp_matrix = correlated_gene_expression(
+            parcellation_file, "all", metric=metric
+        )
+        corr_all_gene_exp_matrix.to_csv(all_genes_roixroi, sep="\t")
 
 
 def step_1(parcellation_file):
@@ -334,7 +335,6 @@ def step_3(
     smashed_correlations = smashed_corr_df["r_score"].T.values
 
     empirical_pvalues = empirical_pval(smashed_correlations, real_correlations)
-
     all_genes_corr_scores["empirical_pvals"] = empirical_pvalues
     reject, corrected, *_ = multipletests(
         all_genes_corr_scores["empirical_pvals"],
@@ -382,7 +382,15 @@ def step_3(
             if not os.path.isfile(compfile):
                 value.to_filename(compfile)
 
+    sign_genes_tsv = os.path.join(
+        output_path, "significant_genes_r_and_pvalues.csv"
+    )
+    significant_genes_df.to_csv(sign_genes_tsv, sep="\t")
     for metric in ["spearman", "pearson"]:
         _save_correlation_matrices(
-            parcellation_file, significant_genes, output_path, metric=metric
+            parcellation_file,
+            significant_genes,
+            output_path,
+            path_to_specific_marker_output,
+            metric=metric,
         )

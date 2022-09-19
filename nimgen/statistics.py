@@ -8,7 +8,7 @@ from scipy.stats.mstats import winsorize
 from .utils import logger
 
 
-def empirical_pval(stat, stat0):
+def empirical_pval(stat_null, stat):
     """Calculate empirical p-value.
 
     Calculate empirical p-value based on the observed (surrogate maps)
@@ -16,10 +16,10 @@ def empirical_pval(stat, stat0):
 
     Parameters
     ----------
+    stat_null: numpy.array or list
+        A vector or matrix of simulated or data-resampled null test statistics.
     stat: numpy.array or list
         A vector of calculated test statistics.
-    stat0: numpy.array or list
-        A vector or matrix of simulated or data-resampled null test statistics.
 
     Returns
     -------
@@ -28,8 +28,8 @@ def empirical_pval(stat, stat0):
     """
 
     logger.info("Empirical p-value calculation...")
-    check = np.sum(np.abs(stat) > np.abs(stat0), axis=0)
-    pvalues = (check + 1) / (len(stat) + 1)
+    check = np.sum(np.abs(stat_null) >= np.abs(stat), axis=0)
+    pvalues = (check + 1) / (len(stat_null) + 1)
     return pvalues
 
 

@@ -106,7 +106,13 @@ def generate_distance_matrices(
 
 
 def generate_surrogate_map(
-    parcellation_file, smap_id, outpath, voxel_parcel_file, matrix_files
+    parcellation_file,
+    smap_id,
+    outpath,
+    voxel_parcel_file,
+    matrix_files,
+    *args,
+    **kwargs,
 ):
     """Randomly generate surrogate maps with matched spatial autocorrelation.
 
@@ -143,10 +149,14 @@ def generate_surrogate_map(
         index=matrix_files["index"],
         resample=True,
         n_jobs=1,
+        *args,
+        **kwargs,
     )
     generated_smap = gen(n=1)
     pc2 = perf_counter()
     logger.info(f"generate_surrogate_maps: {(pc2 - pc1) / 60:0.0f} minutes")
+    if not os.path.isdir(smaps_dir):
+        os.mkdir(smaps_dir)
     _create_nifti(generated_smap, parcellation_file, smap_file)
     return smap_file
 
