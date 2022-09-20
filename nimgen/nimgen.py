@@ -126,4 +126,4 @@ def main():
     print("You are running the nimgen CLI!")
     yaml_file = validate_args(args)
     config_dict = yaml_to_dict(yaml_file)
-    _ = create_pipeline(config_dict)
+    create_pipeline(config_dict)

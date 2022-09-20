@@ -1,5 +1,7 @@
 """Provide tests for the nimgen/smash.py module interfacing with brainsmash."""
 
+# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
 
 import os
 import tempfile

@@ -1,5 +1,8 @@
 """Basic steps to run the mass-univariate nimgen correlation analysis."""
 
+# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
+
 import glob
 import os
 
@@ -333,7 +336,6 @@ def step_3(
     )
     real_correlations = all_genes_corr_scores["r_score"].T.values
     smashed_correlations = smashed_corr_df["r_score"].T.values
-
     empirical_pvalues = empirical_pval(smashed_correlations, real_correlations)
     all_genes_corr_scores["empirical_pvals"] = empirical_pvalues
     reject, corrected, *_ = multipletests(

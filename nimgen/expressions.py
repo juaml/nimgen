@@ -2,6 +2,7 @@
 
 # Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
 #          Leonard Sasse <l.sasse@fz-juelich.de>
+#          Yasir Demirtaş <tyasird@gmail.com>
 #          Sami Hamdan <s.hamdan@fz-juelich.de>
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 #          Kaustubh Patil <k.patil@fz-juelich.de>
@@ -166,7 +167,7 @@ def gene_coexpression(parcellation, sign_genes, metric="spearman"):
         gene.
     """
     exp_with_nans = _get_cached_results(parcellation)
-    if isinstance(sign_genes, str):
+    if isinstance(sign_genes, str) and not os.path.isfile(sign_genes):
         if sign_genes in ["all"]:
             sign_genes_expression = exp_with_nans
         else:
@@ -198,12 +199,12 @@ def correlation_analysis(
 
     Parameters
     ----------
-    exp : np.ndarray or pandas.Series or pandas.DataFrame
+    exp : pandas.DataFrame
         Gene expression values ROIxGenes
     markers : list(float) or np.ndarray or pandas.Series or pandas.DataFrame
         Markers for each ROI in the atlas
-    correlation_method : string
-        Correlation method, pearson or spearman.
+    correlation_method : str
+        Correlation method, 'pearson' or 'spearman'.
     partial_correlation : bool
         Performs partial correlation with given covariates and markers using
         pg.partial_corr function. If set True, covariates_df should be given.
@@ -213,24 +214,24 @@ def correlation_analysis(
 
     Returns
     -------
-    pval, r_score : dict
-        A dictionary contains p-value and correlation score.
+    pval, r_score : tuple
+        [0] p-values and [1] correlation scores.
     """
-
     if partial_correlation:
+        covariates = covariates_df.columns
         correlation_results_list = []
         for gene, gene_vector in exp.iteritems():
             gene_spec_data = covariates_df.copy()
             gene_spec_data.index = exp.index
             gene_spec_data[gene] = gene_vector
-            gene_spec_data["marker"] = markers.squeeze().values
+            gene_spec_data["marker"] = np.array(markers.squeeze())
 
             correlation_results_list.append(
                 pg.partial_corr(
                     gene_spec_data,
                     x=gene,
                     y="marker",
-                    x_covar=covariates_df.columns,
+                    x_covar=covariates,
                     method=correlation_method,
                 )
             )
@@ -243,7 +244,7 @@ def correlation_analysis(
         corr_func = corr_funcs[correlation_method]
 
         correlation_result = exp.apply(
-            lambda col: corr_func(col.values, markers.squeeze().values),
+            lambda col: corr_func(col.values, np.array(markers.squeeze())),
             result_type="expand",
         ).T
 
@@ -273,9 +274,9 @@ def get_gene_expression(
     marker : str or os.PathLike or niimg
         Can be a path to a parcellated marker nifti-file or the nifti-object
         already loaded
-    atlas : niimg-like object
-        A parcellation image in MNI space, where each parcel is identified by a
-        unique integer ID.
+    atlas : str or os.PathLike
+        path to a parcellation image in MNI space, where each parcel is
+        identified by a unique integer ID.
     aggregation_method : str
         method to aggregate the marker given the parcellation. Can be
         'winsorized_mean', 'mean', or 'std'. Default is 'mean'.
@@ -353,8 +354,34 @@ def get_gene_expression(
         )
     elif perform_pca and (custom_covariates_df is not None):
         warnings.warn(
-            "Partial_correlation is set to False, but either perform_pca is "
+            "partial_correlation is set to False, but either perform_pca is "
             "set to True or custom_covariates_df is not None!"
+            " Partial correlation will not be performed, "
+            "but pca will be performed and pc's will bereturned as niftis."
+        )
+        covariates_df, covariates_dict_of_niftis = _prepare_covariates(
+            expressions,
+            atlas,
+            good_rois,
+            bad_rois,
+            perform_pca,
+            pca_dict,
+            custom_covariates_df,
+        )
+    elif perform_pca:
+        warnings.warn(
+            "perform_pca is set to True, but partial_correlation"
+            " is set to False. Partial correlation will not be performed, "
+            "but pca will be performed and pc's will bereturned as niftis."
+        )
+        covariates_df, covariates_dict_of_niftis = _prepare_covariates(
+            expressions,
+            atlas,
+            good_rois,
+            bad_rois,
+            perform_pca,
+            pca_dict,
+            custom_covariates_df,
         )
     else:
         covariates_df = None

@@ -116,7 +116,9 @@ class Pipeline:
                     self.parcellation_files[parcellation_file],
                 )
                 dir_this_parc = os.path.join(
-                    self.parcellations_dir, parcellation_name
+                    self.project_path,
+                    self.parcellations_dir,
+                    parcellation_name,
                 )
                 smaps_dir = os.path.join(dir_this_parc, "smaps")
                 if not os.path.isdir(dir_this_parc):

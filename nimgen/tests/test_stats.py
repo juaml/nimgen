@@ -11,12 +11,10 @@ import nimgen
 
 def test_empirical_pval():
     """Test empirical_pval."""
-    stat_real = 5
-    stat_null = [4, 5, 1, 8, 1, 19, 12, 2, 3]
-
+    stat_real = np.array([4, 5, 1, 8, 1, 19, 12, 2, 3])
+    stat_null = np.arange(90).reshape(10, 9)
     pval = nimgen.statistics.empirical_pval(stat_null, stat_real)
-    # empirical p-val is construed to be 0.5 --> * 10 == 5
-    assert int(pval * 10) == 5
+    assert pval.shape[0] == 9
 
 
 def test_winsorized_mean():
@@ -45,6 +43,3 @@ def test_get_funcbyname_incorrect():
     incorrect_name = "sjkfhjsdfk';alsd'fsdgfsd"
     with pytest.raises(ValueError, match=f"Function {incorrect_name} unknown"):
         nimgen.statistics._get_funcbyname(incorrect_name, {})
-
-
-test_empirical_pval()
