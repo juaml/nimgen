@@ -13,6 +13,10 @@ from nilearn._utils import check_niimg
 from nimgen import smash
 
 
+# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
+
+
 def _make_atlas(size):
     return Nifti1Image(
         np.random.default_rng(seed=5).integers(low=1, high=5, size=size),

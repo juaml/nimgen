@@ -47,12 +47,10 @@ class Pipeline:
         n_pca_covariates=None,
         pipeline_dir="pipeline",
         output_dir="output",
-        parcellations_dir="parcellations",
         config_dict=None,
     ):
         """Initialise pipeline directory."""
         self.project_path = os.path.abspath(project_path)
-
         self.pipeline = pipeline
         self.marker_dir = marker_dir
         self.pipeline_dir = pipeline_dir
@@ -82,8 +80,8 @@ class Pipeline:
 
         if not isinstance(n_pca_covariates, list):
             n_pca_covariates = [n_pca_covariates]
-        elif n_pca_covariates == 0:
-            n_pca_covariates = None
+        elif n_pca_covariates == 0 or n_pca_covariates is None:
+            n_pca_covariates = [None]
         self.n_pca_covariates = n_pca_covariates
 
         self.allen_data_dir = os.path.join(self.project_path, "allen_data")
@@ -169,6 +167,7 @@ class Pipeline:
         for n_pca_cov, correlation_method, alpha in product(
             self.n_pca_covariates, self.correlation_method, self.alpha
         ):
+
             if isinstance(n_pca_cov, int):
                 output_path_comps = os.path.join(
                     specific_marker_output,
@@ -178,7 +177,8 @@ class Pipeline:
                 output_path = os.path.join(
                     output_path_comps, correlation_method, f"alpha-{alpha}"
                 )
-            elif literal_eval(n_pca_cov) is None:
+
+            elif (n_pca_cov is None) or n_pca_cov == "None":
                 output_path = os.path.join(
                     specific_marker_output,
                     correlation_method,
@@ -186,6 +186,8 @@ class Pipeline:
                 )
             if not os.path.isdir(output_path):
                 os.makedirs(output_path)
+
+        return output_path
 
     def _output_exists(self, step, *step_params):
         check_funcs = [

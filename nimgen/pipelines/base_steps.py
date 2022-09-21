@@ -124,6 +124,7 @@ def step_2(
     allen_data_dir,
     correlation_method="spearman",
     n_pca_covariates=None,
+    **kwargs,
 ):
     """Run step 2 in HTCondor-based pipeline.
 
@@ -157,6 +158,9 @@ def step_2(
     partial_correlation : bool
         whether to perform a partial correlation (given a covariate i.e. pca)
         or not
+    **kwargs
+        keyword arguments passed to nimgen.smash.generate_surrogate_map
+        and thereby to brainsmash.mapgen.sampled.Sampled
 
     Returns
     -------
@@ -197,6 +201,7 @@ def step_2(
         path_to_parc,
         voxel_parcel_file,
         matrix_files,
+        **kwargs,
     )
 
     if n_pca_covariates is None:
@@ -238,8 +243,8 @@ def step_3(
     marker_file,
     marker_dir,
     output_dir,
-    allen_data_dir,
     r_path,
+    allen_data_dir=None,
     correlation_method="spearman",
     alpha=0.05,
     n_pca_covariates=None,
@@ -260,7 +265,7 @@ def step_3(
         root directory of all markers in the nimgen pipeline
     output_dir : str
         root directory of all outputs of the nimgen pipeline
-    allen_data_dir : str or os.PathLike
+    allen_data_dir : str or os.PathLike | None (default)
         root directory of AHBA data
     r_path : str or os.PathLike
         Rscript path at which to execute r files
@@ -296,7 +301,7 @@ def step_3(
         )
     )
 
-    # read, concat, delete p-val column from the smashed correlation df
+    # read, concat, from the smashed correlation df
     smashed_data = []
     for f in glob_files:
         smashed_results = os.path.join(

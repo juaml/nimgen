@@ -31,9 +31,9 @@ class HTCondor(Pipeline):
         dictionary with valid pipeline configurations.
     """
 
-    def __init__(self, config_dict, submit_files_dir="submit_files"):
+    def __init__(self, submit_files_dir="submit_files", *args, **kwargs):
         """Initialise HTCondor pipeline."""
-        super().__init__(**config_dict)
+        super().__init__(*args, **kwargs)
         self.submit_files_dir = submit_files_dir
         directory = os.path.join(self.project_path, self.submit_files_dir)
         if not os.path.isdir(directory):
@@ -164,7 +164,7 @@ class HTCondor(Pipeline):
         _, parcellation_head = os.path.split(parcellation)
         parcellation_name = remove_nii_extensions(parcellation_head)
         submit_parc_dir = os.path.join(
-            self.submit_files_dir, parcellation_name
+            self.project_path, self.submit_files_dir, parcellation_name
         )
 
         if not os.path.isdir(submit_parc_dir):
