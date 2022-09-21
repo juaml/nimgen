@@ -82,7 +82,7 @@ def test_steps():
         )
         output_dir = os.path.join(pipeline.project_path, pipeline.output_dir)
 
-        # we also need to cache some fake gene expression data so it wont take
+        # we also need to cache some fake gene expression data so it won't take
         # forever
         smaps_dir = os.path.join(
             pipeline.project_path,

@@ -137,7 +137,7 @@ def test_pipeline_all_params_set():
 
 
 def test_pipeline_with_mainly_defaults():
-    """Test pipeline with minimum cofiguration and mainly default values."""
+    """Test pipeline with minimum configuration and mainly default values."""
     with tempfile.TemporaryDirectory() as tmp:
 
         config_dict = _make_pipeline_configs_defaults_and_nones(tmp)
