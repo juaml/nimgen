@@ -9,6 +9,8 @@ import tempfile
 import numpy as np
 import pandas as pd
 import pytest
+from nilearn._utils import check_niimg
+from nilearn.datasets import fetch_atlas_schaefer_2018
 
 from nimgen import utils
 
@@ -42,6 +44,26 @@ def test_read_csv_tsv():
 
         df = utils.read_csv_tsv(tsv_file)
         assert df.shape == (5, 2)
+
+
+def test_covariates_to_nifti():
+    """Test nimgen.utils.covariates_to_nifti."""
+    parcellation = fetch_atlas_schaefer_2018(n_rois=200)["maps"]
+    covariates_df = pd.DataFrame(
+        {
+            "x": [x for x in range(200)],
+            "y": [y for y in range(200)],
+            "z": [z for z in range(200)],
+        }
+    )
+
+    covariates_nifti_dict = utils.covariates_to_nifti(
+        parcellation, covariates_df
+    )
+    assert isinstance(covariates_nifti_dict, dict)
+    for key, value in covariates_nifti_dict.items():
+        assert key in ["x", "y", "z"]
+        check_niimg(value)
 
 
 def test_read_sign_genes():

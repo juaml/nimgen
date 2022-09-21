@@ -60,14 +60,7 @@ def validate_args(args):
         path to a yaml file determining pipeline configuration
 
     """
-    if (args.create is not None) and (args.run is not None):
-        assert args.create == args.run, (
-            "It is recommended you use either --create or --run, not both."
-            " By default run will also create a pipeline directory if it "
-            "doesn't exist yet!"
-        )
-        return args.create
-    elif args.create is not None:
+    if args.create is not None:
         if not os.path.isfile(args.create):
             raise FileNotFoundError(f"{args.create} not found!")
         return args.create
@@ -98,7 +91,7 @@ def yaml_to_dict(path_to_file):
             print(exc)
 
 
-def create_pipeline(config_dict):
+def create_pipeline(**config_dict):
     """Take configuration dict and construct and return pipeline object.
 
     Parameters
@@ -115,7 +108,7 @@ def create_pipeline(config_dict):
     assert (
         config_dict["pipeline"]["type"] in valid_pipelines.keys()
     ), f"Only pipelines implemented are {valid_pipelines.keys()}!"
-    pipeline = valid_pipelines[config_dict["pipeline"]["type"]](config_dict)
+    pipeline = valid_pipelines[config_dict["pipeline"]["type"]](**config_dict)
     pipeline.create()
     return pipeline
 
@@ -126,4 +119,4 @@ def main():
     print("You are running the nimgen CLI!")
     yaml_file = validate_args(args)
     config_dict = yaml_to_dict(yaml_file)
-    _ = create_pipeline(config_dict)
+    create_pipeline(**config_dict)

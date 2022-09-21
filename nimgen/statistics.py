@@ -1,5 +1,9 @@
 """Perform domain general statistical operations."""
 
+# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
+#          Yasir Demirtaş <tyasird@gmail.com>
+# License: AGPL
+
 from functools import partial
 
 import numpy as np
@@ -8,7 +12,7 @@ from scipy.stats.mstats import winsorize
 from .utils import logger
 
 
-def empirical_pval(stat, stat0):
+def empirical_pval(stat_null, stat):
     """Calculate empirical p-value.
 
     Calculate empirical p-value based on the observed (surrogate maps)
@@ -16,10 +20,14 @@ def empirical_pval(stat, stat0):
 
     Parameters
     ----------
-    stat: numpy.array or list
+    stat_null: numpy.array
+        A vector or matrix (nxm) of simulated or data-resampled null test
+        statistics, where m is the number of test statistics and n is the
+        number of null values in each distribution.
+        The ith column thus corresponds to the null distribution of the ith
+        test statistic in 'stat'.
+    stat: numpy.array (m,)
         A vector of calculated test statistics.
-    stat0: numpy.array or list
-        A vector or matrix of simulated or data-resampled null test statistics.
 
     Returns
     -------
@@ -27,9 +35,14 @@ def empirical_pval(stat, stat0):
         Calculated empirical pvalues.
     """
 
+    n_null_vals, n_tests = stat_null.shape
+    assert n_tests == len(
+        stat
+    ), "Number of test statistics in 'stat_null' an 'stat' are mismatched"
+
     logger.info("Empirical p-value calculation...")
-    check = np.sum(np.abs(stat) > np.abs(stat0), axis=0)
-    pvalues = (check + 1) / (len(stat) + 1)
+    check = np.sum(np.abs(stat_null) >= np.abs(stat), axis=0)
+    pvalues = (check + 1) / (n_null_vals + 1)
     return pvalues
 
 

@@ -1,5 +1,8 @@
 """Basic steps to run the mass-univariate nimgen correlation analysis."""
 
+# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
+# License: AGPL
+
 import glob
 import os
 
@@ -24,7 +27,11 @@ from .base import _specific_marker_output
 
 
 def _save_correlation_matrices(
-    parcellation_file, significant_genes, output_path, metric="spearman"
+    parcellation_file,
+    significant_genes,
+    output_path,
+    specific_marker_output,
+    metric="spearman",
 ):
 
     # calculate gene co-expression based on significant genes
@@ -33,14 +40,6 @@ def _save_correlation_matrices(
     )
     coexp_matrix = gene_coexpression(
         parcellation_file, significant_genes, metric=metric
-    )
-
-    # calculate gene co-expression based on all genes
-    corr_all_gene_exp_matrix = correlated_gene_expression(
-        parcellation_file, "all", metric=metric
-    )
-    coexp_all_matrix = gene_coexpression(
-        parcellation_file, "all", metric=metric
     )
 
     # save as csv in the output path
@@ -62,20 +61,25 @@ def _save_correlation_matrices(
     )
 
     # save matrices based on all genes
-    coexp_all_matrix.to_csv(
-        os.path.join(
-            output_path,
-            f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv",
-        ),
-        sep="\t",
+    all_gene_coexp = os.path.join(
+        specific_marker_output,
+        f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv",
     )
-    corr_all_gene_exp_matrix.to_csv(
-        os.path.join(
-            output_path,
-            f"all-genes_region_by_region_correlation_matrix_{metric}.tsv",
-        ),
-        sep="\t",
+    if not os.path.isfile(all_gene_coexp):
+        coexp_all_matrix = gene_coexpression(
+            parcellation_file, "all", metric=metric
+        )
+        coexp_all_matrix.to_csv(all_gene_coexp, sep="\t")
+
+    all_genes_roixroi = os.path.join(
+        specific_marker_output,
+        f"all-genes_region_by_region_correlation_matrix_{metric}.tsv",
     )
+    if not os.path.isfile(all_genes_roixroi):
+        corr_all_gene_exp_matrix = correlated_gene_expression(
+            parcellation_file, "all", metric=metric
+        )
+        corr_all_gene_exp_matrix.to_csv(all_genes_roixroi, sep="\t")
 
 
 def step_1(parcellation_file):
@@ -120,6 +124,7 @@ def step_2(
     allen_data_dir,
     correlation_method="spearman",
     n_pca_covariates=None,
+    **kwargs,
 ):
     """Run step 2 in HTCondor-based pipeline.
 
@@ -153,6 +158,9 @@ def step_2(
     partial_correlation : bool
         whether to perform a partial correlation (given a covariate i.e. pca)
         or not
+    **kwargs
+        keyword arguments passed to nimgen.smash.generate_surrogate_map
+        and thereby to brainsmash.mapgen.sampled.Sampled
 
     Returns
     -------
@@ -193,6 +201,7 @@ def step_2(
         path_to_parc,
         voxel_parcel_file,
         matrix_files,
+        **kwargs,
     )
 
     if n_pca_covariates is None:
@@ -234,8 +243,8 @@ def step_3(
     marker_file,
     marker_dir,
     output_dir,
-    allen_data_dir,
     r_path,
+    allen_data_dir=None,
     correlation_method="spearman",
     alpha=0.05,
     n_pca_covariates=None,
@@ -256,7 +265,7 @@ def step_3(
         root directory of all markers in the nimgen pipeline
     output_dir : str
         root directory of all outputs of the nimgen pipeline
-    allen_data_dir : str or os.PathLike
+    allen_data_dir : str or os.PathLike | None (default)
         root directory of AHBA data
     r_path : str or os.PathLike
         Rscript path at which to execute r files
@@ -292,7 +301,7 @@ def step_3(
         )
     )
 
-    # read, concat, delete p-val column from the smashed correlation df
+    # read, concat, from the smashed correlation df
     smashed_data = []
     for f in glob_files:
         smashed_results = os.path.join(
@@ -332,9 +341,7 @@ def step_3(
     )
     real_correlations = all_genes_corr_scores["r_score"].T.values
     smashed_correlations = smashed_corr_df["r_score"].T.values
-
     empirical_pvalues = empirical_pval(smashed_correlations, real_correlations)
-
     all_genes_corr_scores["empirical_pvals"] = empirical_pvalues
     reject, corrected, *_ = multipletests(
         all_genes_corr_scores["empirical_pvals"],
@@ -382,7 +389,15 @@ def step_3(
             if not os.path.isfile(compfile):
                 value.to_filename(compfile)
 
+    sign_genes_tsv = os.path.join(
+        output_path, "significant_genes_r_and_pvalues.csv"
+    )
+    significant_genes_df.to_csv(sign_genes_tsv, sep="\t")
     for metric in ["spearman", "pearson"]:
         _save_correlation_matrices(
-            parcellation_file, significant_genes, output_path, metric=metric
+            parcellation_file,
+            significant_genes,
+            output_path,
+            path_to_specific_marker_output,
+            metric=metric,
         )

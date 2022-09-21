@@ -1,6 +1,8 @@
 """Fetch gene expression data from AHBA and run mass-univariate analysis."""
 
 # Authors: Federico Raimondo <f.raimondo@fz-juelich.de>
+#          Leonard Sasse <l.sasse@fz-juelich.de>
+#          Yasir Demirtaş <tyasird@gmail.com>
 #          Sami Hamdan <s.hamdan@fz-juelich.de>
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 #          Kaustubh Patil <k.patil@fz-juelich.de>
@@ -20,15 +22,21 @@ from scipy import stats
 from sklearn.decomposition import PCA
 
 from .statistics import _get_funcbyname
-from .utils import _read_sign_genes, covariates_to_nifti, logger
+from .utils import (
+    _read_sign_genes,
+    covariates_to_nifti,
+    logger,
+    remove_nii_extensions,
+)
 
 
 def _save_expressions(exp, atlas):
     logger.info("Trying to save expressions")
-    save_path = atlas.parent
-    atlas_name = atlas.stem
+    save_path, atlas_name = os.path.split(remove_nii_extensions(atlas))
     if os.access(save_path, os.W_OK):
-        exp_fname = save_path / f"nimgen_{atlas_name}_expressions.csv"
+        exp_fname = os.path.join(
+            save_path, f"nimgen_{atlas_name}_expressions.csv"
+        )
         logger.info(
             f"Saving expressions to nimgen_{atlas_name}_expressions.csv"
         )
@@ -41,16 +49,14 @@ def _save_expressions(exp, atlas):
 
 
 def _get_cached_results(atlas):
-    if not isinstance(atlas, Path):
-        atlas = Path(atlas)
-    exp_path = atlas.parent
-    atlas_name = atlas.stem
-    exp_fname = exp_path / f"nimgen_{atlas_name}_expressions.csv"
+    exp_path, atlas_name = os.path.split(remove_nii_extensions(atlas))
+    exp_fname = os.path.join(exp_path, f"nimgen_{atlas_name}_expressions.csv")
     exp = None
-    if exp_fname.exists():
-        logger.info(f"Reading expressions from {exp_fname.as_posix()}")
-
+    if os.path.isfile(exp_fname):
+        logger.info(f"Reading expressions from {exp_fname}")
         exp = pd.read_csv(exp_fname, sep=";")
+    else:
+        logger.info("No cached results...")
     return exp
 
 
@@ -60,7 +66,7 @@ def apply_pca(exp, pca_dict=None):
 
     Parameters
     ----------
-    exp : np.ndarray or pandas.Series or pandas.DataFrame
+    exp : np.ndarray or pandas.DataFrame
         Gene expression values ROIxGenes
     pca_dict : dict
         PCA parameters i.e. n_components
@@ -73,8 +79,11 @@ def apply_pca(exp, pca_dict=None):
     if pca_dict is None:
         pca_dict = {"n_components": 5}
 
+    if isinstance(exp, pd.DataFrame):
+        exp = exp.values
+
     pca = PCA(**pca_dict)
-    covariates = pca.fit_transform(exp.values.copy())
+    covariates = pca.fit_transform(exp.copy())
     covariates_df = pd.DataFrame(covariates)
     covariates_df.columns = [
         f"covariate-{(int(i)+1)}" for i, _ in enumerate(covariates_df)
@@ -106,11 +115,13 @@ def correlated_gene_expression(parcellation, sign_genes, metric="spearman"):
         A dataframe (ROIxROI matrix) contains correlation score for each ROI.
     """
     exp_with_nans = _get_cached_results(parcellation)
-    if isinstance(sign_genes, str):
+    if isinstance(sign_genes, str) and not (os.path.isfile(sign_genes)):
         if sign_genes in ["all"]:
             sign_genes_expression = exp_with_nans
         else:
-            raise ValueError("if 'sign_genes' is a str it should be 'all'!")
+            raise ValueError(
+                "if 'sign_genes' is a str it should be 'all' or path to file!"
+            )
     else:
         sign_genes = _read_sign_genes(sign_genes)
 
@@ -156,7 +167,7 @@ def gene_coexpression(parcellation, sign_genes, metric="spearman"):
         gene.
     """
     exp_with_nans = _get_cached_results(parcellation)
-    if isinstance(sign_genes, str):
+    if isinstance(sign_genes, str) and not os.path.isfile(sign_genes):
         if sign_genes in ["all"]:
             sign_genes_expression = exp_with_nans
         else:
@@ -188,12 +199,12 @@ def correlation_analysis(
 
     Parameters
     ----------
-    exp : np.ndarray or pandas.Series or pandas.DataFrame
+    exp : pandas.DataFrame
         Gene expression values ROIxGenes
     markers : list(float) or np.ndarray or pandas.Series or pandas.DataFrame
         Markers for each ROI in the atlas
-    correlation_method : string
-        Correlation method, pearson or spearman.
+    correlation_method : str
+        Correlation method, 'pearson' or 'spearman'.
     partial_correlation : bool
         Performs partial correlation with given covariates and markers using
         pg.partial_corr function. If set True, covariates_df should be given.
@@ -203,24 +214,24 @@ def correlation_analysis(
 
     Returns
     -------
-    pval, r_score : dict
-        A dictionary contains p-value and correlation score.
+    pval, r_score : tuple
+        [0] p-values and [1] correlation scores.
     """
-
     if partial_correlation:
+        covariates = covariates_df.columns
         correlation_results_list = []
         for gene, gene_vector in exp.iteritems():
             gene_spec_data = covariates_df.copy()
             gene_spec_data.index = exp.index
             gene_spec_data[gene] = gene_vector
-            gene_spec_data["marker"] = markers.squeeze().values
+            gene_spec_data["marker"] = np.array(markers.squeeze())
 
             correlation_results_list.append(
                 pg.partial_corr(
                     gene_spec_data,
                     x=gene,
                     y="marker",
-                    x_covar=covariates_df.columns,
+                    x_covar=covariates,
                     method=correlation_method,
                 )
             )
@@ -233,7 +244,7 @@ def correlation_analysis(
         corr_func = corr_funcs[correlation_method]
 
         correlation_result = exp.apply(
-            lambda col: corr_func(col.values, markers.squeeze().values),
+            lambda col: corr_func(col.values, np.array(markers.squeeze())),
             result_type="expand",
         ).T
 
@@ -263,9 +274,9 @@ def get_gene_expression(
     marker : str or os.PathLike or niimg
         Can be a path to a parcellated marker nifti-file or the nifti-object
         already loaded
-    atlas : niimg-like object
-        A parcellation image in MNI space, where each parcel is identified by a
-        unique integer ID.
+    atlas : str or os.PathLike
+        path to a parcellation image in MNI space, where each parcel is
+        identified by a unique integer ID.
     aggregation_method : str
         method to aggregate the marker given the parcellation. Can be
         'winsorized_mean', 'mean', or 'std'. Default is 'mean'.
@@ -343,8 +354,34 @@ def get_gene_expression(
         )
     elif perform_pca and (custom_covariates_df is not None):
         warnings.warn(
-            "Partial_correlation is set to False, but either perform_pca is "
+            "partial_correlation is set to False, but either perform_pca is "
             "set to True or custom_covariates_df is not None!"
+            " Partial correlation will not be performed, "
+            "but pca will be performed and pc's will bereturned as niftis."
+        )
+        covariates_df, covariates_dict_of_niftis = _prepare_covariates(
+            expressions,
+            atlas,
+            good_rois,
+            bad_rois,
+            perform_pca,
+            pca_dict,
+            custom_covariates_df,
+        )
+    elif perform_pca:
+        warnings.warn(
+            "perform_pca is set to True, but partial_correlation"
+            " is set to False. Partial correlation will not be performed, "
+            "but pca will be performed and pc's will bereturned as niftis."
+        )
+        covariates_df, covariates_dict_of_niftis = _prepare_covariates(
+            expressions,
+            atlas,
+            good_rois,
+            bad_rois,
+            perform_pca,
+            pca_dict,
+            custom_covariates_df,
         )
     else:
         covariates_df = None
