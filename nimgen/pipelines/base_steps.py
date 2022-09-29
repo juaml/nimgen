@@ -13,7 +13,7 @@ from statsmodels.stats.multitest import multipletests
 from ..expressions import (
     correlated_gene_expression,
     gene_coexpression,
-    get_gene_expression,
+    gene_expression_correlations,
 )
 from ..smash import (
     export_voxel_coordinates,
@@ -215,9 +215,10 @@ def step_2(
         perform_pca = True
 
     # perform correlation analysis for given surrogate map and marker
-    all_genes_corr_scores, _, _ = get_gene_expression(
+    all_genes_corr_scores, _, _ = gene_expression_correlations(
         marker=os.path.join(marker_dir, marker_file),
-        atlas=surrogate_map,
+        atlas=parcellation_file,
+        atlas_marker=surrogate_map,
         aggregation_method="mean",
         allen_data_dir=allen_data_dir,
         correlation_method=correlation_method,
@@ -328,7 +329,11 @@ def step_3(
         perform_pca = True
 
     # perform correlation analysis for given surrogate map and marker
-    all_genes_corr_scores, _, covariates_dict_of_niftis = get_gene_expression(
+    (
+        all_genes_corr_scores,
+        _,
+        covariates_dict_of_niftis,
+    ) = gene_expression_correlations(
         marker=os.path.join(marker_dir, marker_file),
         atlas=parcellation_file,
         aggregation_method="mean",
@@ -341,6 +346,7 @@ def step_3(
     )
     real_correlations = all_genes_corr_scores["r_score"].T.values
     smashed_correlations = smashed_corr_df["r_score"].T.values
+
     empirical_pvalues = empirical_pval(smashed_correlations, real_correlations)
     all_genes_corr_scores["empirical_pvals"] = empirical_pvalues
     reject, corrected, *_ = multipletests(

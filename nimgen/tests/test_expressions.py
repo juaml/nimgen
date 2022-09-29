@@ -151,7 +151,7 @@ def test_correlation_analysis():
                 assert r_idx in exp_data.columns
 
 
-def test_get_gene_expression():
+def test_gene_expression():
     """Test get_gene_expression."""
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -177,14 +177,16 @@ def test_get_gene_expression():
         )
         exp_data.columns = [f"gene-{x}" for x in range(10)]
         expressions._save_expressions(exp_data, parc_path)
-        all_genes, _, _ = expressions.get_gene_expression(marker, parc_path)
+        all_genes, _, _ = expressions.gene_expression_correlations(
+            marker, parc_path
+        )
         assert all_genes.shape == (10, 2)
         assert "pval" in all_genes.columns
         assert "r_score" in all_genes.columns
 
         # test with pca covariates
         pca_dict = {"n_components": 5}
-        all_genes, _, _ = expressions.get_gene_expression(
+        all_genes, _, _ = expressions.gene_expression_correlations(
             marker,
             parc_path,
             perform_pca=True,
@@ -202,7 +204,11 @@ def test_get_gene_expression():
             ):
                 # test with pca covariates and custom covariates
                 pca_dict = {"n_components": 5}
-                all_genes, _, covar_niftis = expressions.get_gene_expression(
+                (
+                    all_genes,
+                    _,
+                    covar_niftis,
+                ) = expressions.gene_expression_correlations(
                     marker,
                     parc_path,
                     perform_pca=True,
@@ -214,7 +220,11 @@ def test_get_gene_expression():
         with pytest.warns(UserWarning, match="perform_pca is set to "):
             # test with pca covariates
             pca_dict = {"n_components": 5}
-            all_genes, _, covar_niftis = expressions.get_gene_expression(
+            (
+                all_genes,
+                _,
+                covar_niftis,
+            ) = expressions.gene_expression_correlations(
                 marker,
                 parc_path,
                 perform_pca=True,

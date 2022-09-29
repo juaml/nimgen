@@ -253,9 +253,10 @@ def correlation_analysis(
     return pval, r_score
 
 
-def get_gene_expression(
+def gene_expression_correlations(
     marker,
     atlas,
+    atlas_marker=None,
     aggregation_method="mean",
     allen_data_dir=None,
     save_expressions=True,
@@ -276,7 +277,15 @@ def get_gene_expression(
         already loaded
     atlas : str or os.PathLike
         path to a parcellation image in MNI space, where each parcel is
-        identified by a unique integer ID.
+        identified by a unique integer ID. This atlas is always used for the
+        gene epxression. If atlas_marker is None, this atlas is also used for
+        the marker.
+    atlas_marker : str or os.PathLike
+        atlas to be used for the marker. Should match dimensions of gene
+        expression atlas. The reason this option is provided is that the marker
+        can be aggregated using a smashed parcellation to derive a null
+        distribution. If 'None', the same atlas as for the gene expression is
+        used.
     aggregation_method : str
         method to aggregate the marker given the parcellation. Can be
         'winsorized_mean', 'mean', or 'std'. Default is 'mean'.
@@ -322,7 +331,10 @@ def get_gene_expression(
 
     """
 
-    marker_aggregated, _ = _aggregate_marker(atlas, marker)
+    if atlas_marker is None:
+        atlas_marker = atlas
+
+    marker_aggregated, _ = _aggregate_marker(atlas_marker, marker)
     marker = pd.DataFrame(marker_aggregated[aggregation_method])
 
     # parcellate gene expression data and extract ROI's where
@@ -357,7 +369,7 @@ def get_gene_expression(
             "partial_correlation is set to False, but either perform_pca is "
             "set to True or custom_covariates_df is not None!"
             " Partial correlation will not be performed, "
-            "but pca will be performed and pc's will bereturned as niftis."
+            "but pca will be performed and pc's will be returned as niftis."
         )
         covariates_df, covariates_dict_of_niftis = _prepare_covariates(
             expressions,
@@ -404,7 +416,7 @@ def get_gene_expression(
     return all_genes, sign_genes, covariates_dict_of_niftis
 
 
-def _aggregate_marker(atlas, vbm, aggregation=None, limits=None):
+def _aggregate_marker(atlas, vbm_nifti, aggregation=None, limits=None):
     """Construct a masker based on the input atlas_nifti.
 
     Applies resampling of the atlas if necessary and applies the masker to
@@ -416,7 +428,7 @@ def _aggregate_marker(atlas, vbm, aggregation=None, limits=None):
     ----------
     atlas_nifti : niimg-like object
         Nifti of atlas to use for parcellation.
-    vbm_nifti: niimg-like object
+    vbm_nifti: niimg-like object or path
         Nifti of voxel based morphometry as e.g. outputted by CAT.
     aggregation: list
         List with strings of aggregation methods to apply. Defaults to
@@ -440,7 +452,7 @@ def _aggregate_marker(atlas, vbm, aggregation=None, limits=None):
     """
 
     atlas_nifti = image.load_img(atlas)
-    vbm_nifti = image.load_img(vbm)
+    vbm_nifti = image.load_img(vbm_nifti)
 
     # defaults (validity is checked in _get_funcbyname())
     if aggregation is None:  # Don't put mutables as defaults, use None instead
