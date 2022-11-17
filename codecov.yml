@@ -11,7 +11,7 @@ coverage:
         if_ci_failed: failure
         if_no_uploads: error
         if_not_found: success
-        target: 80.0
+        target: 95.0
     project:
       default: false
       library:

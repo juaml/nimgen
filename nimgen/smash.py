@@ -111,7 +111,6 @@ def generate_surrogate_map(
     outpath,
     voxel_parcel_file,
     matrix_files,
-    *args,
     **kwargs,
 ):
     """Randomly generate surrogate maps with matched spatial autocorrelation.
@@ -149,7 +148,6 @@ def generate_surrogate_map(
         index=matrix_files["index"],
         resample=True,
         n_jobs=1,
-        *args,
         **kwargs,
     )
     generated_smap = gen(n=1)

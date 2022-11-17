@@ -82,23 +82,16 @@ def test_steps():
         )
         output_dir = os.path.join(pipeline.project_path, pipeline.output_dir)
 
-        # we also need to cache some fake gene expression data so it won't take
-        # forever
-        smaps_dir = os.path.join(
-            pipeline.project_path,
-            pipeline.parcellations_dir,
-            "test_atlas",
-            "smaps",
-        )
         base_steps.step_1(parcellation)
 
         for i in range(1, 4):
 
-            smap_file = os.path.join(smaps_dir, f"{i}_smap.nii")
             exp = pd.DataFrame(
                 np.random.randint(low=5, high=100, size=(49, 10))
             )
-            _save_expressions(exp, smap_file)
+            # we also need to cache some fake gene expression data so it
+            # won't take forever
+            _save_expressions(exp, parcellation)
             base_steps.step_2(
                 parcellation,
                 marker_file,
