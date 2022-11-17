@@ -395,10 +395,8 @@ def step_3(
             if not os.path.isfile(compfile):
                 value.to_filename(compfile)
 
-    sign_genes_tsv = os.path.join(
-        output_path, "significant_genes_r_and_pvalues.csv"
-    )
-    significant_genes_df.to_csv(sign_genes_tsv, sep="\t")
+    genes_tsv = os.path.join(output_path, "genes_r_and_pvalues.csv")
+    all_genes_corr_scores.to_csv(genes_tsv, sep="\t")
     for metric in ["spearman", "pearson"]:
         _save_correlation_matrices(
             parcellation_file,
