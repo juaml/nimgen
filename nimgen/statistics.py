@@ -6,6 +6,7 @@
 
 from functools import partial
 
+import minepy
 import numpy as np
 from scipy.stats.mstats import winsorize
 
@@ -44,6 +45,76 @@ def empirical_pval(stat_null, stat):
     check = np.sum(np.abs(stat_null) >= np.abs(stat), axis=0)
     pvalues = (check + 1) / (n_null_vals + 1)
     return pvalues
+
+
+def mic(x, y):
+    """Calculate the MIC.
+
+    Convenience function to calculate the Maximal Information Coefficient.
+    The implementation is based on minepy which can be found under:
+    https://minepy.readthedocs.io/en/latest/python.html.
+    This function here is supposed to match the format of scipy's
+    pearsonr and spearmanr functions so it can be dropped in easily into
+    the nimgen pipeline.
+
+    Parameters
+    ----------
+    x : (N,) array_like
+        Input array
+    y : (N,) array_like
+        Input array
+
+    Returns
+    -------
+    tuple
+        mic : float
+        pvalue : np.nan
+
+    TODO: Calculate p-values for two variables.
+    At the moment, we do not need these p-values, as we calculate empirical
+    p-values in the brainsmash pipeline using only the MIC stats, but we
+    may still want to implement this at a later timepoint.
+
+    """
+    mine = minepy.MINE()
+    mine.compute_score(x, y)
+    mic = mine.mic()
+    return mic, np.nan
+
+
+def tic(x, y):
+    """Calculate the TIC.
+
+    Convenience function to calculate the Total Information Coefficient.
+    The implementation is based on minepy which can be found under:
+    https://minepy.readthedocs.io/en/latest/python.html.
+    This function here is supposed to match the format of scipy's
+    pearsonr and spearmanr functions so it can be dropped in easily into
+    the nimgen pipeline.
+
+    Parameters
+    ----------
+    x : (N,) array_like
+        Input array
+    y : (N,) array_like
+        Input array
+
+    Returns
+    -------
+    tuple
+        tic : float
+        pvalue : np.nan
+
+    TODO: Calculate p-values for two variables.
+    At the moment, we do not need these p-values, as we calculate empirical
+    p-values in the brainsmash pipeline using only the TIC stats, but we
+    may still want to implement this at a later timepoint.
+
+    """
+    mine = minepy.MINE()
+    mine.compute_score(x, y)
+    tic = mine.tic()
+    return tic, np.nan
 
 
 def winsorized_mean(data, axis=None, **win_params):

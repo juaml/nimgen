@@ -177,25 +177,31 @@ def test_gene_expression():
         )
         exp_data.columns = [f"gene-{x}" for x in range(10)]
         expressions._save_expressions(exp_data, parc_path)
-        all_genes, _, _ = expressions.gene_expression_correlations(
-            marker, parc_path
-        )
-        assert all_genes.shape == (10, 2)
-        assert "pval" in all_genes.columns
-        assert "r_score" in all_genes.columns
+
+        corr_methods = ["mic", "spearman"]
+        for cm in corr_methods:
+            all_genes, _, _ = expressions.gene_expression_correlations(
+                marker, parc_path, correlation_method=cm
+            )
+            assert all_genes.shape == (10, 2)
+            assert "pval" in all_genes.columns
+            assert f"{cm}_value" in all_genes.columns
 
         # test with pca covariates
-        pca_dict = {"n_components": 5}
-        all_genes, _, _ = expressions.gene_expression_correlations(
-            marker,
-            parc_path,
-            perform_pca=True,
-            pca_dict=pca_dict,
-            partial_correlation=True,
-        )
-        assert all_genes.shape == (10, 2)
-        assert "pval" in all_genes.columns
-        assert "r_score" in all_genes.columns
+        corr_methods = ["pearson"]
+        for cm in corr_methods:
+            pca_dict = {"n_components": 5}
+            all_genes, _, _ = expressions.gene_expression_correlations(
+                marker,
+                parc_path,
+                correlation_method=cm,
+                perform_pca=True,
+                pca_dict=pca_dict,
+                partial_correlation=True,
+            )
+            assert all_genes.shape == (10, 2)
+            assert "pval" in all_genes.columns
+            assert f"{cm}_value" in all_genes.columns
 
         with pytest.warns(UserWarning, match="partial_correlation is set to "):
             # remove when implemented 'raises'
@@ -234,7 +240,7 @@ def test_gene_expression():
             assert isinstance(covar_niftis, dict)
             assert all_genes.shape == (10, 2)
             assert "pval" in all_genes.columns
-            assert "r_score" in all_genes.columns
+            assert "spearman_value" in all_genes.columns
 
 
 def test_aggregate_marker():

@@ -21,7 +21,7 @@ from nilearn import image, masking
 from scipy import stats
 from sklearn.decomposition import PCA
 
-from .statistics import _get_funcbyname
+from .statistics import _get_funcbyname, mic, tic
 from .utils import (
     _read_sign_genes,
     covariates_to_nifti,
@@ -218,6 +218,11 @@ def correlation_analysis(
         [0] p-values and [1] correlation scores.
     """
     if partial_correlation:
+        if correlation_method not in ["spearman", "pearson"]:
+            raise NotImplementedError(
+                f"{correlation_method} not implemented for partial"
+                " correlations!"
+            )
         covariates = covariates_df.columns
         correlation_results_list = []
         for gene, gene_vector in exp.iteritems():
@@ -240,7 +245,12 @@ def correlation_analysis(
 
         pval, r_score = correlation_result["p-val"], correlation_result["r"]
     else:
-        corr_funcs = {"spearman": stats.spearmanr, "pearson": stats.pearsonr}
+        corr_funcs = {
+            "spearman": stats.spearmanr,
+            "pearson": stats.pearsonr,
+            "mic": mic,
+            "tic": tic,
+        }
         corr_func = corr_funcs[correlation_method]
 
         correlation_result = exp.apply(
@@ -399,7 +409,7 @@ def gene_expression_correlations(
         covariates_df = None
 
     # perform mass-univariate correlation analysis
-    pval, r_score = correlation_analysis(
+    pval, statistic = correlation_analysis(
         exp_no_nan,
         marker_no_nan,
         correlation_method,
@@ -408,7 +418,11 @@ def gene_expression_correlations(
     )
 
     all_genes = pd.DataFrame(
-        {"genes": pval.index, "pval": pval.values, "r_score": r_score}
+        {
+            "genes": pval.index,
+            "pval": pval.values,
+            f"{correlation_method}_value": statistic,
+        }
     ).set_index("genes")
 
     sign_genes = all_genes[all_genes.pval < alpha]
@@ -419,36 +433,36 @@ def gene_expression_correlations(
 def _aggregate_marker(atlas, vbm_nifti, aggregation=None, limits=None):
     """Construct a masker based on the input atlas_nifti.
 
-    Applies resampling of the atlas if necessary and applies the masker to
-    the vbm_nifti to extract brain-imaging based vbm markers.
-    So far the aggregation methods "winsorized mean", "mean" and
-    "std" are supported.
+     Applies resampling of the atlas if necessary and applies the masker to
+     the vbm_nifti to extract brain-imaging based vbm markers.
+     So far the aggregation methods "winsorized mean", "mean" and
+     "std" are supported.
 
-    Parameters
-    ----------
+     Parameters
+     ----------
     atlas_nifti : niimg-like object
-        Nifti of atlas to use for parcellation.
-    vbm_nifti: niimg-like object or path
-        Nifti of voxel based morphometry as e.g. outputted by CAT.
-    aggregation: list
-        List with strings of aggregation methods to apply. Defaults to
-        aggregation = ['winsorized_mean', 'mean', 'std'].
-    limits: array
-        Array with lower and upper limit for the calculation of the winsorized
-        mean. Only needed when 'winsorized_mean' was specified
-        in aggregation. If wasn't specified defaults to [0.1, 0.1].
+         Nifti of atlas to use for parcellation.
+     vbm_nifti: niimg-like object or path
+         Nifti of voxel based morphometry as e.g. outputted by CAT.
+     aggregation: list
+         List with strings of aggregation methods to apply. Defaults to
+         aggregation = ['winsorized_mean', 'mean', 'std'].
+     limits: array
+         Array with lower and upper limit for the calculation of the winsorized
+         mean. Only needed when 'winsorized_mean' was specified
+         in aggregation. If wasn't specified defaults to [0.1, 0.1].
 
-    Returns
-    -------
-    marker_aggregated : dict
-        Dictionary with keys being each of the chosen aggregation methods
-        and values the corresponding array with the calculated marker based on
-        the provided atlas. The array therefore as the shape of the chosen
-        number of ROIs (granularity).
-    marker_func_params: dict
-        Dictionary with parameters used for the aggregation function. Keys:
-        respective aggregation function, values: dict with responding
-        parameters
+     Returns
+     -------
+     marker_aggregated : dict
+         Dictionary with keys being each of the chosen aggregation methods
+         and values the corresponding array with the calculated marker based on
+         the provided atlas. The array therefore as the shape of the chosen
+         number of ROIs (granularity).
+     marker_func_params: dict
+         Dictionary with parameters used for the aggregation function. Keys:
+         respective aggregation function, values: dict with responding
+         parameters
     """
 
     atlas_nifti = image.load_img(atlas)

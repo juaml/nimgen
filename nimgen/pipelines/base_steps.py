@@ -344,8 +344,12 @@ def step_3(
         pca_dict=pca_dict,
         partial_correlation=partial_correlation,
     )
-    real_correlations = all_genes_corr_scores["r_score"].T.values
-    smashed_correlations = smashed_corr_df["r_score"].T.values
+    real_correlations = all_genes_corr_scores[
+        f"{correlation_method}_value"
+    ].T.values
+    smashed_correlations = smashed_corr_df[
+        f"{correlation_method}_value"
+    ].T.values
 
     empirical_pvalues = empirical_pval(smashed_correlations, real_correlations)
     all_genes_corr_scores["empirical_pvals"] = empirical_pvalues
@@ -395,7 +399,9 @@ def step_3(
             if not os.path.isfile(compfile):
                 value.to_filename(compfile)
 
-    genes_tsv = os.path.join(output_path, "genes_r_and_pvalues.csv")
+    genes_tsv = os.path.join(
+        output_path, f"genes_{correlation_method}_and_pvalues.csv"
+    )
     all_genes_corr_scores.to_csv(genes_tsv, sep="\t")
     for metric in ["spearman", "pearson"]:
         _save_correlation_matrices(

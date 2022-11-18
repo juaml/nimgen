@@ -25,6 +25,22 @@ def test_winsorized_mean():
     assert isinstance(result, float)
 
 
+def test_mic():
+    """Test mic."""
+    x = np.arange(9)
+    y = np.flip(np.arange(9))
+    mic = nimgen.statistics.mic(x, y)
+    assert isinstance(mic[0], float)
+
+
+def test_tic():
+    """Test tic."""
+    x = np.arange(9)
+    y = np.flip(np.arange(9))
+    tic = nimgen.statistics.tic(x, y)
+    assert isinstance(tic[0], float)
+
+
 def test_get_funcbyname_correct():
     """Test get_funcbyname with correct name."""
     data = np.array([[3, 1, 4, 5, 6, 1, 1], [2, 3, 1, 87, 12, 190, 2]]).T
