@@ -39,8 +39,9 @@ class Pipeline:
         marker_dir,
         pipeline,
         r_path,
-        path_to_venv,
         parcellation_files,
+        path_to_venv=None,
+        path_to_conda_env=None,
         n_surrogate_maps=100,
         correlation_method=None,
         alpha=0.05,
@@ -61,7 +62,16 @@ class Pipeline:
         self.parcellation_marker_dict = {}
         self.r_path = os.path.abspath(r_path)
         self.path_to_venv = path_to_venv
+        self.path_to_conda_env = path_to_conda_env
         self.n_surrogate_maps = n_surrogate_maps
+
+        if self.path_to_venv is not None:
+            self.conda = False
+            self.path_to_venv = os.path.abspath(self.path_to_venv)
+        else:
+            assert self.path_to_conda_env is not None
+            self.path_to_conda_env = os.path.abspath(self.path_to_conda_env)
+            self.conda = True
 
         if correlation_method is None:
             self.correlation_method = ["spearman"]
@@ -253,6 +263,10 @@ class Pipeline:
             )
             output_path = os.path.join(
                 output_path_comps, corr_method, f"alpha-{alpha}"
+            )
+        elif n_pca_cov is None:
+            output_path = os.path.join(
+                specific_marker_output, corr_method, f"alpha-{alpha}"
             )
         elif literal_eval(n_pca_cov) is None:
             output_path = os.path.join(
