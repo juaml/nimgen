@@ -4,6 +4,13 @@ python3 $@
 deactivate
 """
 
+RUN_CONDA = """#!/usr/bin/bash
+eval "$(conda shell.bash hook)"
+conda activate {}
+python3 $@
+conda deactivate
+"""
+
 STEP_ONE_FSTRING = """
 #!/usr/bin/env python3
 

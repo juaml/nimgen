@@ -9,6 +9,7 @@ from itertools import product
 from nimgen.utils import remove_nii_extensions
 
 from ._htcondor_python_strings import (
+    RUN_CONDA,
     RUN_IN_VENV,
     STEP_ONE_FSTRING,
     STEP_THREE_FSTRING,
@@ -46,13 +47,19 @@ class HTCondor(Pipeline):
             )
 
     def prepare_run_in_venv(self):
-        """Prepare a bash file to source a python venv for the pipeline."""
+        """Prepare a bash file to source a venv or conda env."""
 
         run_in_venv = os.path.join(
             self.project_path, self.pipeline_dir, "run_in_venv.sh"
         )
-        with open(run_in_venv, "w") as f:
-            f.write(RUN_IN_VENV.format(self.path_to_venv))
+
+        if self.conda:
+            with open(run_in_venv, "w") as f:
+                f.write(RUN_CONDA.format(self.path_to_conda_env))
+        else:
+            with open(run_in_venv, "w") as f:
+                f.write(RUN_IN_VENV.format(self.path_to_venv))
+
         os.system(f"chmod +x {run_in_venv}")
 
     def prepare_step(self, step):
