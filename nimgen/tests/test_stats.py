@@ -41,6 +41,22 @@ def test_tic():
     assert isinstance(tic[0], float)
 
 
+def test_inv_wasserstein_distance():
+    """Test invers_wasserstein_distance."""
+    x = np.arange(9)
+    y = np.flip(np.arange(9))
+    iwd = nimgen.statistics.inv_wasserstein_distance(x, y)
+    assert isinstance(iwd[0], float)
+
+
+def test_dcorr():
+    """Test dcorr."""
+    x = np.arange(9)
+    y = np.flip(np.arange(9))
+    dist_corr = nimgen.statistics.dcorr(x, y)
+    assert isinstance(dist_corr[0], float)
+
+
 def test_get_funcbyname_correct():
     """Test get_funcbyname with correct name."""
     data = np.array([[3, 1, 4, 5, 6, 1, 1], [2, 3, 1, 87, 12, 190, 2]]).T

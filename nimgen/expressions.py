@@ -21,7 +21,13 @@ from nilearn import image, masking
 from scipy import stats
 from sklearn.decomposition import PCA
 
-from .statistics import _get_funcbyname, mic, tic
+from .statistics import (
+    _get_funcbyname,
+    dcorr,
+    inv_wasserstein_distance,
+    mic,
+    tic,
+)
 from .utils import (
     _read_sign_genes,
     covariates_to_nifti,
@@ -250,6 +256,8 @@ def correlation_analysis(
             "pearson": stats.pearsonr,
             "mic": mic,
             "tic": tic,
+            "dcorr": dcorr,
+            "inv_wasserstein_distance": inv_wasserstein_distance,
         }
         corr_func = corr_funcs[correlation_method]
 
