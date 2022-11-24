@@ -400,7 +400,7 @@ def step_3(
                 value.to_filename(compfile)
 
     genes_tsv = os.path.join(
-        output_path, f"genes_{correlation_method}_and_pvalues.csv"
+        output_path, f"genes_{correlation_method}_and_pvalues.tsv"
     )
     all_genes_corr_scores.to_csv(genes_tsv, sep="\t")
     for metric in ["spearman", "pearson"]:
