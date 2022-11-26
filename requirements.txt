@@ -1,4 +1,3 @@
-minepy==1.2.6
 abagen==0.1.3
 black==19.10b0
 brainsmash==0.11.0
