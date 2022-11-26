@@ -24,9 +24,6 @@ from sklearn.decomposition import PCA
 from .statistics import (
     _get_funcbyname,
     dcorr,
-    inv_wasserstein_distance,
-    mic,
-    tic,
 )
 from .utils import (
     _read_sign_genes,
@@ -254,10 +251,7 @@ def correlation_analysis(
         corr_funcs = {
             "spearman": stats.spearmanr,
             "pearson": stats.pearsonr,
-            "mic": mic,
-            "tic": tic,
             "dcorr": dcorr,
-            "inv_wasserstein_distance": inv_wasserstein_distance,
         }
         corr_func = corr_funcs[correlation_method]
 

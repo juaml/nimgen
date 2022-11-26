@@ -25,30 +25,6 @@ def test_winsorized_mean():
     assert isinstance(result, float)
 
 
-def test_mic():
-    """Test mic."""
-    x = np.arange(9)
-    y = np.flip(np.arange(9))
-    mic = nimgen.statistics.mic(x, y)
-    assert isinstance(mic[0], float)
-
-
-def test_tic():
-    """Test tic."""
-    x = np.arange(9)
-    y = np.flip(np.arange(9))
-    tic = nimgen.statistics.tic(x, y)
-    assert isinstance(tic[0], float)
-
-
-def test_inv_wasserstein_distance():
-    """Test invers_wasserstein_distance."""
-    x = np.arange(9)
-    y = np.flip(np.arange(9))
-    iwd = nimgen.statistics.inv_wasserstein_distance(x, y)
-    assert isinstance(iwd[0], float)
-
-
 def test_dcorr():
     """Test dcorr."""
     x = np.arange(9)

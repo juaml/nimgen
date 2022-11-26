@@ -178,7 +178,7 @@ def test_gene_expression():
         exp_data.columns = [f"gene-{x}" for x in range(10)]
         expressions._save_expressions(exp_data, parc_path)
 
-        corr_methods = ["mic", "spearman", "inv_wasserstein_distance", "dcorr"]
+        corr_methods = ["spearman", "dcorr"]
         for cm in corr_methods:
             all_genes, _, _ = expressions.gene_expression_correlations(
                 marker, parc_path, correlation_method=cm
