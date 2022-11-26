@@ -170,9 +170,12 @@ def dcorr(x, y, seed=None):
         pvalue : np.nan
 
     """
-    return pg.distance_corr(
-        x, y, alternative="two-sided", n_boot=None, seed=seed
-    ), np.nan
+    return (
+        pg.distance_corr(
+            x, y, alternative="two-sided", n_boot=None, seed=seed
+        ),
+        np.nan,
+    )
 
 
 def winsorized_mean(data, axis=None, **win_params):
