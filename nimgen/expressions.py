@@ -21,10 +21,7 @@ from nilearn import image, masking
 from scipy import stats
 from sklearn.decomposition import PCA
 
-from .statistics import (
-    _get_funcbyname,
-    dcorr,
-)
+from .statistics import _get_funcbyname, dcorr
 from .utils import (
     _read_sign_genes,
     covariates_to_nifti,
