@@ -7,6 +7,7 @@
 from functools import partial
 
 import numpy as np
+import pingouin as pg
 from scipy.stats.mstats import winsorize
 
 from .utils import logger
@@ -44,6 +45,37 @@ def empirical_pval(stat_null, stat):
     check = np.sum(np.abs(stat_null) >= np.abs(stat), axis=0)
     pvalues = (check + 1) / (n_null_vals + 1)
     return pvalues
+
+
+def dcorr(x, y, seed=None):
+    """Calculate distance correlation.
+
+    Convenience function to calculate the distance correlation and
+    permutation-based p-values using the pingouin toolbox.
+    This function here is supposed to match the format of scipy's
+    pearsonr and spearmanr functions so it can be dropped in easily into
+    the nimgen pipeline with pre-specified parameters.
+
+    Parameters
+    ----------
+    x : (N,) array_like
+        Input array
+    y : (N,) array_like
+        Input array
+
+    Returns
+    -------
+    tuple
+        tic : float
+        pvalue : np.nan
+
+    """
+    return (
+        pg.distance_corr(
+            x, y, alternative="two-sided", n_boot=None, seed=seed
+        ),
+        np.nan,
+    )
 
 
 def winsorized_mean(data, axis=None, **win_params):
