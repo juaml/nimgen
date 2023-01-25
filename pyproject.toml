@@ -44,7 +44,8 @@ dependencies = [
     "numpy",
     "abagen",
     "pingouin",
-    "brainsmash"
+    "brainsmash",
+    "neuromaps"
 ]
 dynamic = ["version"]
 
