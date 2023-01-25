@@ -25,7 +25,7 @@ def r_script_file():
 
 def run_webgestalt(
     genes_file="genes.txt",
-    r_path="/usr/bin/Rscript",
+    r_path="/usr/bin/env Rscript",
     r_arg="--vanilla",
     r_exec="./../r_script/webgestalt.r",
 ):
