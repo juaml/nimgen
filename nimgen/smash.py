@@ -6,16 +6,23 @@
 # License: AGPL
 
 
+import shutil
 from itertools import combinations_with_replacement
 from pathlib import Path
 
+# import matplotlib.pyplot as plt
 import neuromaps as nm
 import nibabel as nib
 import numpy as np
+from neuromaps.nulls import burt2020
+from neuromaps.parcellate import Parcellater
 from scipy import ndimage
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cdist  # , pdist
 
 from .utils import logger, remove_nii_extensions
+
+
+# from scipy.stats import spearmanr
 
 
 def _vox_dist_original(parcellation):
@@ -35,7 +42,7 @@ def _vox_dist_original(parcellation):
     https://netneurolab.github.io/neuromaps/
     _modules/neuromaps/nulls/nulls.html#burt2020
     """
-
+    logger.info("Generating a fresh distance matrix.")
     darr = nm.images.load_data(parcellation)
     affine = nm.images.load_nifti(parcellation).affine
     labels = np.trim_zeros(np.unique(darr))
@@ -95,15 +102,17 @@ def vox_dist(parcellation):
     return dist
 
 
-def cached_distance_matrix(parcellation_path):
+def cached_distance_matrix(parcellation_path, force_overwrite=False):
     """Load a chached distance matrix for a given parcellation.
 
     If a distance matrix is not yet cached, it will be generated.
 
     Parameters
     ----------
-    parcellation : niimg-like
+    parcellation_path : path
         Nifti file of parcellation for which to generate the distance matrix.
+    force_overwrite : boolean
+        Whether or not to force overwriting the cached distance matrix.
 
     Returns
     -------
@@ -120,7 +129,7 @@ def cached_distance_matrix(parcellation_path):
     # path and filename distance matrix
     dist_mat_file = parent / f"{parc_name}_dist_mat.npy"
 
-    if dist_mat_file.is_file():
+    if dist_mat_file.is_file() and not force_overwrite:
         logger.info(f"{dist_mat_file} already exists! Loading...")
         dist_mat = np.load(dist_mat_file)
     else:
@@ -130,3 +139,106 @@ def cached_distance_matrix(parcellation_path):
         np.save(dist_mat_file, dist_mat)
 
     return dist_mat
+
+
+# def _plot_spatial_correlations(data, nulls, dist_mat, fname):
+
+# data_array = np.array(data)[np.newaxis]
+# n_parcels, n_perm = nulls.shape
+# distance_data = pdist(data_array.T)
+# dspat = dist_mat[np.triu_indices(n_parcels, k=1)]
+# logger.info(f"spatial correlation {spearmanr(distance_data, dspat)}")
+
+# spatcorr = np.zeros((n_perm, 1))
+# for i in range(n_perm):
+#     d = np.array(nulls[:, i])[np.newaxis]
+#     ddata = pdist(d.T)
+#     spatcorr[i], _ = spearmanr(distance_data, dspat)
+
+# TODO: Add histograms later
+# counts, bin_edges = np.histogram(spatcorr)
+# fig = plt.figure()
+# fig.hist(counts, bin_edges)
+# plt.savefig(fname)
+
+
+def cached_null_maps(
+    parcellation_path,
+    marker_path,
+    distmat,
+    n_perm,
+    seed=None,
+    force_overwrite=False,
+):
+    """Load a chached null maps file for a parcellation/marker combination.
+
+    If the null maps are not yet cached, they will be generated.
+
+    Parameters
+    ----------
+    parcellation_path : path
+        Nifti file of parcellation for which to generate the distance matrix.
+    marker_path : path
+        Path to nifti file of marker of interest.
+    distmat : path
+        Path to npy file of distance matrix for this parcellation.
+    n_perm : int
+        How many null maps should be generated.
+    seed : int
+        Random seed for null map generation.
+    force_overwrite : bool
+        Whether to force overwriting the cached null maps with new ones.
+
+    Returns
+    -------
+    null_maps : numpy.array
+        Null maps.
+    """
+    # get the path to the marker file
+    marker_path = Path(marker_path)
+    parcellation_path = Path(parcellation_path)
+    marker_parent = marker_path.parent
+
+    # get the name of the marker and parcellation
+    marker_name = remove_nii_extensions(marker_path.stem)
+    parc_name = remove_nii_extensions(parcellation_path.stem)
+
+    # path and filename null maps
+    null_maps_file_name = (
+        f"marker-{marker_name}_perms-{n_perm}_seed-{seed}_desc-nullmaps"
+    )
+    null_maps_dir = marker_parent / "nullmaps" / parc_name
+
+    if not null_maps_dir.exists():
+        null_maps_dir.mkdir(parents=True, exist_ok=True)
+
+    null_maps_file = null_maps_dir / f"{null_maps_file_name}.npy"
+    # null_maps_plot_file = null_maps_dir / f"{null_maps_file_name}.svg"
+
+    if null_maps_file.is_file() and not force_overwrite:
+        logger.info(f"{null_maps_file} already exists! Loading...")
+        null_maps = np.load(null_maps_file)
+    else:
+        logger.info(f"{null_maps_file} does not exist yet! Generating...")
+        masker = Parcellater(parcellation_path, space="MNI152").fit()
+        data = masker.transform(marker_path, space="MNI152")[0]
+
+        # call neuromaps function to generate null maps
+        null_maps = burt2020(
+            data=data,
+            atlas="MNI152",
+            density="2mm",
+            n_perm=n_perm,
+            parcellation=parcellation_path,
+            seed=seed,
+            distmat=distmat,
+        )
+        logger.info(f"Caching newly generated null maps at {null_maps_file}")
+        np.save(null_maps_file, null_maps)
+        # _plot_spatial_correlations(
+        #     data, null_maps, distmat, null_maps_plot_file
+        # )
+        shutil.copy(parcellation_path, null_maps_dir)
+        logger.info("Saving parcellation with nullmaps.")
+
+    return null_maps
