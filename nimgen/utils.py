@@ -20,6 +20,9 @@ import numpy as np
 import pandas as pd
 from nilearn import image
 
+# TODO: Make a function that creates a logger and returns it
+# TODO: Make every function that uses a logger take it as a parameter
+# TODO: and return it as well so it can be passed
 
 logger = logging.getLogger("nimgen")
 

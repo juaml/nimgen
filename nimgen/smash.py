@@ -133,9 +133,8 @@ def cached_distance_matrix(parcellation_path, force_overwrite=False):
         logger.info(f"{dist_mat_file} already exists! Loading...")
         dist_mat = np.load(dist_mat_file)
     else:
-        logger.info(f"{dist_mat_file} does not exist yet! Generating...")
+        logger.info(f"Creating a new distance matrix at {dist_mat_file}")
         dist_mat = vox_dist(parcellation_path)
-        logger.info("Caching newly generated distance matrix...")
         np.save(dist_mat_file, dist_mat)
 
     return dist_mat
@@ -194,6 +193,7 @@ def cached_null_maps(
     null_maps : numpy.array
         Null maps.
     """
+    # TODO: ADD SHAPE INFO TO THE null_maps docstring
     # get the path to the marker file
     marker_path = Path(marker_path)
     parcellation_path = Path(parcellation_path)
@@ -209,36 +209,35 @@ def cached_null_maps(
     )
     null_maps_dir = marker_parent / "nullmaps" / parc_name
 
-    if not null_maps_dir.exists():
-        null_maps_dir.mkdir(parents=True, exist_ok=True)
+    null_maps_dir.mkdir(parents=True, exist_ok=True)
 
     null_maps_file = null_maps_dir / f"{null_maps_file_name}.npy"
     # null_maps_plot_file = null_maps_dir / f"{null_maps_file_name}.svg"
 
     if null_maps_file.is_file() and not force_overwrite:
         logger.info(f"{null_maps_file} already exists! Loading...")
-        null_maps = np.load(null_maps_file)
-    else:
-        logger.info(f"{null_maps_file} does not exist yet! Generating...")
-        masker = Parcellater(parcellation_path, space="MNI152").fit()
-        data = masker.transform(marker_path, space="MNI152")[0]
+        return  np.load(null_maps_file)
+        
+    logger.info(f"Creating new null maps file at {null_maps_file}")
+    masker = Parcellater(parcellation_path, space="MNI152").fit()
+    data = masker.transform(marker_path, space="MNI152")[0]
 
-        # call neuromaps function to generate null maps
-        null_maps = burt2020(
-            data=data,
-            atlas="MNI152",
-            density="2mm",
-            n_perm=n_perm,
-            parcellation=parcellation_path,
-            seed=seed,
-            distmat=distmat,
-        )
-        logger.info(f"Caching newly generated null maps at {null_maps_file}")
-        np.save(null_maps_file, null_maps)
-        # _plot_spatial_correlations(
-        #     data, null_maps, distmat, null_maps_plot_file
-        # )
-        shutil.copy(parcellation_path, null_maps_dir)
-        logger.info("Saving parcellation with nullmaps.")
+    # call neuromaps function to generate null maps
+    null_maps = burt2020(
+        data=data,
+        atlas="MNI152",
+        density="2mm", # TODO: Use correct resolution programmatically
+        n_perm=n_perm,
+        parcellation=parcellation_path,
+        seed=seed,
+        distmat=distmat,
+    )
+    logger.info(f"Caching newly generated null maps at {null_maps_file}")
+    np.save(null_maps_file, null_maps)
+    # _plot_spatial_correlations(
+    #     data, null_maps, distmat, null_maps_plot_file
+    # )
+    shutil.copy(parcellation_path, null_maps_dir) # TODO: Check if this is necessary and perhaps remove
+    logger.info("Saving parcellation with nullmaps.")
 
     return null_maps
