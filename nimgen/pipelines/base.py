@@ -88,7 +88,7 @@ class Pipeline:
         # prepare markers (and parcellations)
         self.markers = markers
 
-        self.jobs_dir = Path(".") / f"{name}_jobs"
+        self.jobs_dir = Path(".") / name
         self.markers_dir = self.jobs_dir / "markers"
         self.parcellations_dir = self.jobs_dir / "parcellations"
         self.all_gene_outputs = self.jobs_dir / "all_gene_outputs"
@@ -111,21 +111,23 @@ class Pipeline:
         if isinstance(marker_parcellations, str):
             marker_parcellations = [marker_parcellations]
 
-        parc_names = [remove_nii_extensions(x) for x in marker_parcellations]
+        parc_names = [
+            Path(remove_nii_extensions(x)).name for x in marker_parcellations
+        ]
 
         # null maps directories
         null_maps_dir = marker_dir / "nullmaps"
         null_maps_dir.mkdir()
-
+        
         for name in parc_names:
-            parc_dir = null_maps_dir / Path(name).name
+            parc_dir = null_maps_dir / name
             parc_dir.mkdir()
+            
             output_nullmaps = parc_dir / "nullmaps_results"
             output_nullmaps.mkdir()
-
-        # outpath
-        outpath = marker_dir / "outputs"
-        outpath.mkdir()
+            
+            outpath = marker_dir / "outputs" / name
+            outpath.mkdir(parents=True)
 
         return marker_dst, marker_parcellations
 
@@ -137,13 +139,16 @@ class Pipeline:
         shutil.copy(parcellation_path, parcellation_dir)
         return parcellation_dir / Path(parcellation_path).name
 
-    def create_jobs_dir(self):
+    def create_jobs_dir(self, force_overwrite=False):
         """Create the pipeline directory."""
-
-        if self.jobs_dir.exists():
+        
+        if self.jobs_dir.exists() and not force_overwrite:
             raise FileExistsError(
                 "Pleave remove or rename existing nimgen_jobs directories."
             )
+        elif self.jobs_dir.exists() and force_overwrite:
+            shutil.rmtree(self.jobs_dir)
+        
         self.jobs_dir.mkdir()
         self.markers_dir.mkdir()
         self.parcellations_dir.mkdir()
@@ -169,6 +174,6 @@ class Pipeline:
 
         self.all_parcellations = list(set(all_parcellations))
 
-    def create(self):
+    def create(self, force_overwrite=False):
         """Create the base pipeline."""
-        self.create_jobs_dir()
+        self.create_jobs_dir(force_overwrite=force_overwrite)

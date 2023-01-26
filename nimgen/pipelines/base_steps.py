@@ -183,7 +183,7 @@ def _step_3(
     """
     logger.info("Starting surrogate correlation analysis...")
     for key, value in locals().items():
-        logger.info(f"{key}     ==================      {value}")
+        logger.info(f"{key} = {value}")
 
     partial_correlation = False if n_pca_covariates is None else True
     if not os.path.isfile(parcellation_file):
@@ -282,14 +282,18 @@ def _step_4(
 
     """
     marker_folder_output = Path(marker_file).parent / "outputs"
-    perm_specific = marker_folder_output / f"nperm-{n_perm}_seed-{seed}"
-    if not perm_specific.exists():
-        perm_specific.mkdir(parents=True)
+    name_parc = remove_nii_extensions(Path(parcellation_file).name)
+    
+    perm_specific = (
+        marker_folder_output
+        / name_parc
+        / f"nperm-{n_perm}_seed-{seed}"
+    )
+    perm_specific.mkdir(parents=True, exist_ok=True)
 
     # i do not use glob here because i want to be explicit about the number of
     # null maps to use
     logger.info("Loading null map results.")
-    name_parc = remove_nii_extensions(Path(parcellation_file).name)
     glob_files = [
         Path(marker_file).parent
         / "nullmaps"

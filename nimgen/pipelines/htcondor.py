@@ -32,9 +32,9 @@ class HTCondor(Pipeline):
         self.submit_files_dir = self.jobs_dir / submit_files_dir
         self.logs_dir = self.submit_files_dir / "logs"
 
-    def create(self):
+    def create(self, force_overwrite=False):
         """Create a HTCondor-specific pipeline."""
-        super().create()
+        super().create(force_overwrite=force_overwrite)
         self.submit_files_dir.mkdir()
         self.logs_dir.mkdir()
         self.prepare_run_in_venv()
