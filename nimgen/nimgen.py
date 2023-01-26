@@ -8,7 +8,7 @@ import shutil
 
 import yaml
 
-from nimgen.logging import configure_logging
+from nimgen.logutils import configure_logging
 from nimgen.pipelines.base_steps import _step_1, _step_2, _step_3, _step_4
 from nimgen.pipelines.htcondor import HTCondor
 from nimgen.utils import _cols_to_nifti
@@ -40,12 +40,19 @@ def parse_args():
         "create",
         help=(
             "Create a pipeline using a yaml configuration file."
-            "Input should be the path to a valid yaml file specifying "
+            " Input should be the path to a valid yaml file specifying "
             "pipeline configuration."
         ),
     )
     create_parser.add_argument(
         "config_yaml", help="Path to yaml file with pipeline configuration."
+    )
+
+    create_parser.add_argument(
+        "-f",
+        "--force_overwrite",
+        action="store_true",
+        help="If activated, previous jobs directories will be overwritten."
     )
     create_parser.set_defaults(func=create)
 
@@ -220,30 +227,6 @@ def parse_args():
     return parser.parse_args()
 
 
-# def validate_args(args):
-#     """Check that values for keyword arguments are valid.
-
-#     Parameters
-#     ----------
-#     args : args
-#         arguments parsed by argparse.ArgumentParser
-
-#     Returns
-#     --------
-#     path_to_yaml : str
-#         path to a yaml file determining pipeline configuration
-
-#     """
-#     if args.create is not None:
-#         if not os.path.isfile(args.create):
-#             raise FileNotFoundError(f"{args.create} not found!")
-#         return args.create
-#     elif args.run is not None:
-#         if not os.path.isfile(args.create):
-#             raise FileNotFoundError(f"{args.run} not found!")
-#         return args.run
-
-
 def yaml_to_dict(path_to_file):
     """Read yaml file with pipeline specifications.
 
@@ -286,7 +269,7 @@ def create(args):
     ), f"Only pipelines implemented are {valid_pipelines.keys()}!"
     pipeline = valid_pipelines[config_dict["pipeline"]["type"]](**config_dict)
     print("Creating nimgen pipeline directory...")
-    pipeline.create()
+    pipeline.create(args.force_overwrite)
     shutil.copy(args.config_yaml, pipeline.jobs_dir)
 
     return pipeline

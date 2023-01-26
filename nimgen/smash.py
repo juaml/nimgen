@@ -141,27 +141,6 @@ def cached_distance_matrix(parcellation_path, force_overwrite=False):
     return dist_mat
 
 
-# def _plot_spatial_correlations(data, nulls, dist_mat, fname):
-
-# data_array = np.array(data)[np.newaxis]
-# n_parcels, n_perm = nulls.shape
-# distance_data = pdist(data_array.T)
-# dspat = dist_mat[np.triu_indices(n_parcels, k=1)]
-# logger.info(f"spatial correlation {spearmanr(distance_data, dspat)}")
-
-# spatcorr = np.zeros((n_perm, 1))
-# for i in range(n_perm):
-#     d = np.array(nulls[:, i])[np.newaxis]
-#     ddata = pdist(d.T)
-#     spatcorr[i], _ = spearmanr(distance_data, dspat)
-
-# TODO: Add histograms later
-# counts, bin_edges = np.histogram(spatcorr)
-# fig = plt.figure()
-# fig.hist(counts, bin_edges)
-# plt.savefig(fname)
-
-
 def cached_null_maps(
     parcellation_path,
     marker_path,
@@ -213,7 +192,6 @@ def cached_null_maps(
     null_maps_dir.mkdir(parents=True, exist_ok=True)
 
     null_maps_file = null_maps_dir / f"{null_maps_file_name}.npy"
-    # null_maps_plot_file = null_maps_dir / f"{null_maps_file_name}.svg"
 
     if null_maps_file.is_file() and not force_overwrite:
         logger.info(f"{null_maps_file} already exists! Loading...")
@@ -235,12 +213,5 @@ def cached_null_maps(
     )
     logger.info(f"Caching newly generated null maps at {null_maps_file}")
     np.save(null_maps_file, null_maps)
-    # _plot_spatial_correlations(
-    #     data, null_maps, distmat, null_maps_plot_file
-    # )
-    shutil.copy(
-        parcellation_path, null_maps_dir
-    )  # TODO: Check if this is necessary and perhaps remove
-    logger.info("Saving parcellation with nullmaps.")
 
     return null_maps
