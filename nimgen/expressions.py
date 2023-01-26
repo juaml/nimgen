@@ -556,7 +556,7 @@ def _prepare_expressions(
 
     logger.info("Checking atlas and markers dimensions")
     atlas_img = nib.load(atlas)
-    nrois = np.unique(atlas_img.get_fdata()).astype(np.int).shape[0] - 1
+    nrois = np.unique(atlas_img.get_fdata()).astype(int).shape[0] - 1
     if nrois != len(marker):
         raise ValueError(
             f"Number of markers ({len(marker)}) does not match "
