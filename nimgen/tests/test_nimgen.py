@@ -4,12 +4,11 @@
 # License: AGPL
 
 import os
+import shutil
 import sys
 import tempfile
-import shutil
 from pathlib import Path
 
-import pytest
 from nilearn import datasets
 
 from nimgen import nimgen
@@ -61,7 +60,7 @@ def test_cli():
     with tempfile.TemporaryDirectory() as tmp:
         sys.argv = [sys.argv[0]]
         sys.argv.append("create")
-        sys.argv.append("-f") # force overwriting previous test runs
+        sys.argv.append("-f")  # force overwriting previous test runs
         sys.argv.append(f"{tmp}/my_yaml.yaml")
         args = nimgen.parse_args()
 
@@ -74,7 +73,7 @@ def test_cli():
 
         marker_file = Path(tmp) / "marker.nii"
         marker_file.touch()
-        
+
         with open(args.config_yaml, "w") as f:
             f.write(
                 YAML_STRING.format(
@@ -86,24 +85,24 @@ def test_cli():
             )
 
         nimgen.main()
-        
+
         mockup_path = Path(name_of_pipeline)
         all_gene_output_path = mockup_path / "all_gene_outputs"
         marker_path = mockup_path / "markers" / "marker" / "marker.nii"
         parc_path = (
-            mockup_path 
-            / "parcellations" / "Schaefer2018_100Parcels_7Networks_order_FSLMNI152_1mm"
-            / "Schaefer2018_100Parcels_7Networks_order_FSLMNI152_1mm.nii.gz"        
+            mockup_path
+            / "parcellations"
+            / "Schaefer2018_100Parcels_7Networks_order_FSLMNI152_1mm"
+            / "Schaefer2018_100Parcels_7Networks_order_FSLMNI152_1mm.nii.gz"
         )
         yaml_path = mockup_path / "my_yaml.yaml"
         log_path = mockup_path / "submit_files" / "logs"
-        
+
         assert mockup_path.exists()
         assert all_gene_output_path.exists()
         assert marker_path.exists()
         assert parc_path.exists()
         assert yaml_path.exists()
         assert log_path.exists()
-        
-        shutil.rmtree(name_of_pipeline)        
 
+        shutil.rmtree(name_of_pipeline)

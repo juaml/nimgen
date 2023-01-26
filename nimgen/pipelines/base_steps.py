@@ -283,11 +283,9 @@ def _step_4(
     """
     marker_folder_output = Path(marker_file).parent / "outputs"
     name_parc = remove_nii_extensions(Path(parcellation_file).name)
-    
+
     perm_specific = (
-        marker_folder_output
-        / name_parc
-        / f"nperm-{n_perm}_seed-{seed}"
+        marker_folder_output / name_parc / f"nperm-{n_perm}_seed-{seed}"
     )
     perm_specific.mkdir(parents=True, exist_ok=True)
 

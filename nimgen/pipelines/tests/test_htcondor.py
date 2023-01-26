@@ -26,10 +26,8 @@ def _make_pipeline_configs(tmp):
     config_dict = {
         "name": "mockup",
         "verbosity": "WARNING",
-        "seed": 100,        
-        "markers": [
-            {"path": _make_marker_dir(tmp), "parcellation": [parc]}
-        ],
+        "seed": 100,
+        "markers": [{"path": _make_marker_dir(tmp), "parcellation": [parc]}],
         "pipeline": {
             "type": "HTCondor",
             "step_1": {"CPU": 1, "MEMORY": 64, "DISK": 10},

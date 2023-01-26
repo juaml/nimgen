@@ -21,4 +21,6 @@ def test_file_strings():
         ),
         str,
     )
-    assert isinstance(_htcondor_python_strings.RUN_IN_VENV.format(venv="venv"), str)
+    assert isinstance(
+        _htcondor_python_strings.RUN_IN_VENV.format(venv="venv"), str
+    )

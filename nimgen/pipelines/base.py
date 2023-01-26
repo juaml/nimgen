@@ -118,14 +118,14 @@ class Pipeline:
         # null maps directories
         null_maps_dir = marker_dir / "nullmaps"
         null_maps_dir.mkdir()
-        
+
         for name in parc_names:
             parc_dir = null_maps_dir / name
             parc_dir.mkdir()
-            
+
             output_nullmaps = parc_dir / "nullmaps_results"
             output_nullmaps.mkdir()
-            
+
             outpath = marker_dir / "outputs" / name
             outpath.mkdir(parents=True)
 
@@ -141,14 +141,14 @@ class Pipeline:
 
     def create_jobs_dir(self, force_overwrite=False):
         """Create the pipeline directory."""
-        
+
         if self.jobs_dir.exists() and not force_overwrite:
             raise FileExistsError(
                 "Pleave remove or rename existing nimgen_jobs directories."
             )
         elif self.jobs_dir.exists() and force_overwrite:
             shutil.rmtree(self.jobs_dir)
-        
+
         self.jobs_dir.mkdir()
         self.markers_dir.mkdir()
         self.parcellations_dir.mkdir()

@@ -52,7 +52,7 @@ def parse_args():
         "-f",
         "--force_overwrite",
         action="store_true",
-        help="If activated, previous jobs directories will be overwritten."
+        help="If activated, previous jobs directories will be overwritten.",
     )
     create_parser.set_defaults(func=create)
 
