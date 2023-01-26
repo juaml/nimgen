@@ -8,6 +8,7 @@
 #          Kaustubh Patil <k.patil@fz-juelich.de>
 # License: AGPL
 
+import logging
 import os
 import warnings
 from pathlib import Path
@@ -22,12 +23,10 @@ from scipy import stats
 from sklearn.decomposition import PCA
 
 from .statistics import _get_funcbyname, dcorr
-from .utils import (
-    _read_sign_genes,
-    covariates_to_nifti,
-    logger,
-    remove_nii_extensions,
-)
+from .utils import _read_sign_genes, covariates_to_nifti, remove_nii_extensions
+
+
+logger = logging.getLogger(__name__)
 
 
 def _save_expressions(exp, atlas):

@@ -4,13 +4,15 @@
 #          Yasir Demirtaş <tyasird@gmail.com>
 # License: AGPL
 
+import logging
 from functools import partial
 
 import numpy as np
 import pingouin as pg
 from scipy.stats.mstats import winsorize
 
-from .utils import logger
+
+logger = logging.getLogger(__name__)
 
 
 def empirical_pval(stat_null, stat):

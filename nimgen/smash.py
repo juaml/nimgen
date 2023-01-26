@@ -6,6 +6,7 @@
 # License: AGPL
 
 
+import logging
 import shutil
 from itertools import combinations_with_replacement
 from pathlib import Path
@@ -19,10 +20,10 @@ from neuromaps.parcellate import Parcellater
 from scipy import ndimage
 from scipy.spatial.distance import cdist  # , pdist
 
-from .utils import logger, remove_nii_extensions
+from .utils import remove_nii_extensions
 
 
-# from scipy.stats import spearmanr
+logger = logging.getLogger(__name__)
 
 
 def _vox_dist_original(parcellation):
@@ -216,8 +217,8 @@ def cached_null_maps(
 
     if null_maps_file.is_file() and not force_overwrite:
         logger.info(f"{null_maps_file} already exists! Loading...")
-        return  np.load(null_maps_file)
-        
+        return np.load(null_maps_file)
+
     logger.info(f"Creating new null maps file at {null_maps_file}")
     masker = Parcellater(parcellation_path, space="MNI152").fit()
     data = masker.transform(marker_path, space="MNI152")[0]
@@ -226,7 +227,7 @@ def cached_null_maps(
     null_maps = burt2020(
         data=data,
         atlas="MNI152",
-        density="2mm", # TODO: Use correct resolution programmatically
+        density="2mm",  # TODO: Use correct resolution programmatically
         n_perm=n_perm,
         parcellation=parcellation_path,
         seed=seed,
@@ -237,7 +238,9 @@ def cached_null_maps(
     # _plot_spatial_correlations(
     #     data, null_maps, distmat, null_maps_plot_file
     # )
-    shutil.copy(parcellation_path, null_maps_dir) # TODO: Check if this is necessary and perhaps remove
+    shutil.copy(
+        parcellation_path, null_maps_dir
+    )  # TODO: Check if this is necessary and perhaps remove
     logger.info("Saving parcellation with nullmaps.")
 
     return null_maps

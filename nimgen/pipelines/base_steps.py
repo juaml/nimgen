@@ -3,6 +3,7 @@
 # Authors: Leonard Sasse <l.sasse@fz-juelich.de>
 # License: AGPL
 
+import logging
 import os
 from pathlib import Path
 
@@ -18,8 +19,11 @@ from ..expressions import (
 )
 from ..smash import cached_distance_matrix, cached_null_maps
 from ..statistics import empirical_pval
-from ..utils import log_versions, logger, remove_nii_extensions
+from ..utils import remove_nii_extensions
 from ..web import run_webgestalt
+
+
+logger = logging.getLogger(__name__)
 
 
 def _save_correlation_matrices(
@@ -105,8 +109,7 @@ def _step_1(parcellation_file):
     -------
     None; saves distance matrices in the appropriate parcellation directory
     """
-    log_versions()
-    if not os.path.isfile(parcellation_file): # TODO: change to pathlb
+    if not os.path.isfile(parcellation_file):  # TODO: change to pathlb
         raise ValueError("Input file not found.")
 
     logger.info("Checking for cached distance matrix...")
@@ -132,7 +135,7 @@ def _step_2(parcellation_file, marker_file, n_perm, seed):
     seed : int
         random seed for null map generation.
     """
-    log_versions()
+
     logger.info("Checking for cached distance null maps...")
     dist_mat = cached_distance_matrix(parcellation_file)
     cached_null_maps(
@@ -178,7 +181,6 @@ def _step_3(
     None; saves correlation scores for surrogate maps in appropriate output
     directory
     """
-    log_versions()
     logger.info("Starting surrogate correlation analysis...")
     for key, value in locals().items():
         logger.info(f"{key}     ==================      {value}")
@@ -279,7 +281,6 @@ def _step_4(
         as covariates in the partial correlation between marker and genes.
 
     """
-    log_versions()
     marker_folder_output = Path(marker_file).parent / "outputs"
     perm_specific = marker_folder_output / f"nperm-{n_perm}_seed-{seed}"
     if not perm_specific.exists():
@@ -382,9 +383,7 @@ def _step_4(
         )
         output_path = output_path_comps / correlation_method / f"alpha-{alpha}"
     else:
-        output_path = (
-            perm_specific / correlation_method / f"alpha-{alpha}"
-        )
+        output_path = perm_specific / correlation_method / f"alpha-{alpha}"
 
     if not os.path.isdir(output_path):
         output_path.mkdir(parents=True)

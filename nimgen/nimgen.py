@@ -8,6 +8,7 @@ import shutil
 
 import yaml
 
+from nimgen.logging import configure_logging
 from nimgen.pipelines.base_steps import _step_1, _step_2, _step_3, _step_4
 from nimgen.pipelines.htcondor import HTCondor
 from nimgen.utils import _cols_to_nifti
@@ -23,6 +24,15 @@ def parse_args():
             "Allen Human Brain Atlas"
         )
     )
+
+    parser.add_argument(
+        "-v",
+        "--verbosity",
+        help="Level of logging verbosity.",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+    )
+
     subparsers = parser.add_subparsers(help="sub-command help")
 
     # create "create" command
@@ -182,7 +192,6 @@ def parse_args():
 
     step4_parser.set_defaults(func=step_4)
 
-
     # create cols_to_nifti command
     col_nii_parser = subparsers.add_parser(
         "cols_to_nifti",
@@ -201,7 +210,8 @@ def parse_args():
         help="Folder in which to store nifti outputs.",
     )
     col_nii_parser.add_argument(
-        "--n_cols", "-n",
+        "--n_cols",
+        "-n",
         dest="n_cols",
         type=int,
         help="Number of columns to convert to nifti.",
@@ -335,6 +345,7 @@ def step_4(args):
             alpha=args.alpha,
         )
 
+
 def cols_to_nifti(args):
     """Wrap _cols_to_nii function for command line."""
     _cols_to_nifti(
@@ -344,9 +355,9 @@ def cols_to_nifti(args):
         n_cols=args.n_cols,
     )
 
+
 def main():
     """Run nimgen CLI."""
     args = parse_args()
-    print("You are running the nimgen CLI!")
-    # yaml_file = validate_args(args)
+    configure_logging(args.verbosity)
     args.func(args)

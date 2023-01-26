@@ -24,6 +24,7 @@ class Pipeline:
         pipeline,
         markers,
         seed=1,
+        verbosity="INFO",
         name="nimgen",
         r_path=None,
         path_to_venv=None,
@@ -46,6 +47,7 @@ class Pipeline:
         self.n_surrogate_maps = n_surrogate_maps
         self._init_dir = Path(os.getcwd())
         self.seed = int(seed)
+        self.verbosity = verbosity
         self.name = name
 
         # take care of virtual environment to run in

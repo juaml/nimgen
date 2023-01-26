@@ -4,11 +4,13 @@
 #          Leonard Sasse <l.sasse@fz-juelich.de>
 # License: AGPL
 
+import logging
 import os
 import subprocess
 from time import perf_counter
 
-from .utils import logger
+
+logger = logging.getLogger(__name__)
 
 
 def r_script_file():

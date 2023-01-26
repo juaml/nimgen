@@ -127,7 +127,8 @@ class HTCondor(Pipeline):
 
                 for arg_tuple in product(*arg_vals):
                     arguments = " ".join(
-                        [f"nimgen step_{step}"] + [str(x) for x in arg_tuple]
+                        [f"nimgen -v {self.verbosity} step_{step}"]
+                        + [str(x) for x in arg_tuple]
                     )
 
                     job_id = f"step-{step}_job-{job_count}_"
