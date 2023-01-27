@@ -16,7 +16,6 @@ def _make_atlas(size, seed=5):
     return Nifti1Image(
         np.random.default_rng(seed=seed).integers(low=1, high=5, size=size),
         np.eye(4),
-        dtype="int32",
     )
 
 

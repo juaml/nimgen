@@ -103,7 +103,7 @@ def vox_dist(parcellation):
 
 
 def cached_distance_matrix(parcellation_path, force_overwrite=False):
-    """Load a chached distance matrix for a given parcellation.
+    """Load a cached distance matrix for a given parcellation.
 
     If a distance matrix is not yet cached, it will be generated.
 
@@ -148,7 +148,7 @@ def cached_null_maps(
     seed=None,
     force_overwrite=False,
 ):
-    """Load a chached null maps file for a parcellation/marker combination.
+    """Load a cached null maps file for a parcellation/marker combination.
 
     If the null maps are not yet cached, they will be generated.
 
@@ -170,9 +170,8 @@ def cached_null_maps(
     Returns
     -------
     null_maps : numpy.array
-        Null maps.
+        Null maps (n_rois, n_nullmaps).
     """
-    # TODO: ADD SHAPE INFO TO THE null_maps docstring
     # get the path to the marker file
     marker_path = Path(marker_path)
     parcellation_path = Path(parcellation_path)
@@ -204,7 +203,7 @@ def cached_null_maps(
     null_maps = burt2020(
         data=data,
         atlas="MNI152",
-        density="2mm",  # TODO: Use correct resolution programmatically
+        density="2mm",
         n_perm=n_perm,
         parcellation=parcellation_path,
         seed=seed,

@@ -109,7 +109,7 @@ def _step_1(parcellation_file):
     -------
     None; saves distance matrices in the appropriate parcellation directory
     """
-    if not os.path.isfile(parcellation_file):  # TODO: change to pathlb
+    if Path(parcellation_file).is_file():
         raise ValueError("Input file not found.")
 
     logger.info("Checking for cached distance matrix...")
@@ -305,9 +305,10 @@ def _step_4(
     ]
 
     partial_correlation = False if n_pca_covariates is None else True
-    assert (
-        len(glob_files) == n_perm
-    ), f"{n_perm=}, and there are only {len(glob_files)} null map results!"
+    assert len(glob_files) == n_perm, (
+        f"n_perm = {n_perm}, and there are only "
+        f"{len(glob_files)} null map results!"
+    )
 
     # read, concat, from the smashed correlation df
     smashed_data = []
@@ -331,9 +332,9 @@ def _step_4(
         pca_dict = {"n_components": n_pca_covariates}
         perform_pca = True
 
-    logger.info(f"{perform_pca=}")
-    logger.info(f"{n_pca_covariates=}")
-    logger.info(f"{pca_dict=}")
+    logger.info(f"perform_pca = {perform_pca}")
+    logger.info(f"n_pca_covariates = {n_pca_covariates}")
+    logger.info(f"pca_dict = {pca_dict}")
 
     logger.info(
         "Running correlation analysis between marker and gene expressions."
