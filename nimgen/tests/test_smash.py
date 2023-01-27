@@ -3,74 +3,89 @@
 # Authors: Leonard Sasse <l.sasse@fz-juelich.de>
 # License: AGPL
 
-import os
 import tempfile
+from pathlib import Path
 
 import numpy as np
 from nibabel import Nifti1Image
-from nilearn._utils import check_niimg
 
 from nimgen import smash
 
 
-# Authors: Leonard Sasse <l.sasse@fz-juelich.de>
-# License: AGPL
-
-
-def _make_atlas(size):
+def _make_atlas(size, seed=5):
     return Nifti1Image(
-        np.random.default_rng(seed=5).integers(low=1, high=5, size=size),
+        np.random.default_rng(seed=seed).integers(low=1, high=5, size=size),
         np.eye(4),
     )
 
 
-def test_export_voxel_coordinates():
-    """Test export_voxel_coordinates."""
+def test_vox_dist():
+    """Test faster vox_dist implementation."""
 
     atlas = _make_atlas(size=(5, 5, 2))
+    original_implementation = smash._vox_dist_original(atlas)
+    fast_implementation = smash.vox_dist(atlas)
+
+    rows, cols = original_implementation.shape
+    assert rows == cols
+
+    off_diag_mask = ~np.eye(rows, dtype=bool)
+    original_off_diag = original_implementation[off_diag_mask]
+    fast_off_diag = fast_implementation[off_diag_mask]
+
+    np.testing.assert_almost_equal(original_off_diag, fast_off_diag, decimal=6)
+
+
+def test_cached_distance_matrix():
+    """Test cached_distance_matrix."""
+    parcellation = _make_atlas(size=(5, 5, 2))
     with tempfile.TemporaryDirectory() as tmp:
-        coord_file, parcel_file = smash.export_voxel_coordinates(atlas, tmp)
-        assert os.path.isfile(coord_file)
-        assert os.path.isfile(parcel_file)
+        parcellation_path = Path(tmp) / "parcellation.nii.gz"
+        parcellation.to_filename(parcellation_path)
+        new = smash.cached_distance_matrix(parcellation_path)
 
-        _, name_coord_file = os.path.split(coord_file)
-        _, name_parcel_file = os.path.split(parcel_file)
+        # check if caching worked correctly
+        assert (Path(tmp) / "parcellation_dist_mat.npy").is_file()
+        cached = smash.cached_distance_matrix(parcellation_path)
+        np.testing.assert_array_equal(new, cached)
 
-        assert name_coord_file == "voxel_coordinates.txt"
-        assert name_parcel_file == "brain_map.txt"
 
+def test_cached_null_maps():
+    """Test cached_null_maps."""
+    parcellation = _make_atlas(size=(5, 5, 2))
+    marker = _make_atlas(size=(5, 5, 2), seed=10)
 
-def test_generate_distance_matrices():
-    """Test generate_distance_matrices."""
-
-    atlas = _make_atlas(size=(5, 5, 2))
     with tempfile.TemporaryDirectory() as tmp:
-        _, _ = smash.export_voxel_coordinates(atlas, tmp)
-        filenames = smash.generate_distance_matrices(tmp)
-        for key, value in filenames.items():
-            assert key in ["D", "index"]
-            assert os.path.isfile(value)
-            _, filename = os.path.split(value)
-            assert filename in ["index.npy", "distmat.npy"]
-
-        # test case where distance matrix already exists
-        filenames = smash.generate_distance_matrices(tmp)
-
-
-def test_generate_surrogate_map():
-    """Test generate_surrogate_map."""
-
-    atlas = _make_atlas(size=(5, 5, 2))
-    with tempfile.TemporaryDirectory() as tmp:
-        _, parcel_file = smash.export_voxel_coordinates(atlas, tmp)
-        filenames = smash.generate_distance_matrices(tmp)
-        smap_file = smash.generate_surrogate_map(
-            atlas, 5, tmp, parcel_file, filenames, knn=20, ns=5, pv=50
+        parcellation_path = Path(tmp) / "parcellation.nii.gz"
+        marker_path = Path(tmp) / "marker.nii.gz"
+        null_maps_dir = Path(tmp) / "nullmaps" / "parcellation"
+        null_maps_file = (
+            null_maps_dir / "marker-marker_perms-100_seed-10_desc-nullmaps.npy"
         )
-        assert os.path.isfile(smap_file)
-        check_niimg(smap_file)
 
-        # test case where smaps_file already exists
-        smap_file = smash.generate_surrogate_map(
-            atlas, 5, tmp, parcel_file, filenames, knn=20, ns=5, pv=50
+        parcellation.to_filename(parcellation_path)
+        marker.to_filename(marker_path)
+
+        # generating null maps with my made up marker data
+        # fails
+        # TODO: make generating null maps work fast with some
+        # made up data for testing
+        null_maps = np.random.default_rng(seed=10).random((100, 5))
+
+        null_maps_dir.mkdir(parents=True, exist_ok=True)
+        np.save(null_maps_file, null_maps)
+
+        dist_mat = np.random.default_rng(seed=10).random((5, 5))
+        dist_mat = (dist_mat + dist_mat.T) / 2
+
+        null_maps_cached = smash.cached_null_maps(
+            parcellation_path,
+            marker_path,
+            dist_mat,
+            n_perm=100,
+            seed=10,
         )
+        np.testing.assert_array_equal(null_maps, null_maps_cached)
+
+
+test_cached_null_maps()

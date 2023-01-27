@@ -1,62 +1,18 @@
 # NImGen
 
-NImGen is a Python-based extensible open source toolbox for elucidating neuroimaging-genetics mappings. The toolbox allows extracting gene expression levels for parcellations from the Allen Human Brain Atlas (AHBA) with the help of the abagen package. Each gene’s expression levels can be correlated to an MRI marker of interest. Besides correlation analysis, the NImGen package allows you to perform Principal Component Analysis (PCA), partial correlation, gene co-expression, correlated gene expression analysis. With the assistance of a gene enrichment analysis tool (WebGestalt), the significant genes are examined to obtain higher-order biological processes.  Since increasing the number of parcels can inflate statistical significance, NImGen provides a permutation-testing approach based on BrainSMASH. An efficient, reproducible, and rapid pipeline with several MRI markers may be constructed due to the nimgen package's modular design and functionality. The NImGen toolbox includes a set of commonly used tools accompanied by validated, ready-to-use, and easy-to-follow code snippets. These code snippets will guide you through each analysis.
-
-## Requirements
-
-* abagen
-* brainsmash
-* nibabel
-* nilearn
-* pandas
-* numpy
-* pingouin
-* scikit_learn
-* scipy
-* statsmodels
-
-
-## FileTree
-```
-├── allen_data                                  : gene expression data from Allen Human Brain
-├── nimgen                                      : package
-├── code
-│   ├── compute_gene_lists
-│   │   ├── create_submit_files.py              : creates submit files for  ht condor with given parameters
-│   │   ├── job1.py                             : distance matrix creation for BrainSmash
-│   │   ├── job2.py                             : create surrogate map and  performs correlation analysis (smap x marker)
-│   │   ├── job3.py                             : GSE analysis (webgestalt),  coexpression,  region correlation
-│   │   ├── job4.py                             : performs PCA
-│   │   ├── run_in_venv.sh
-│   │   └── test.py
-├── input
-│   ├── markers
-│   │   ├── AOMIC
-│   │   └── HCP
-│   │       ├──  MarkerDirectory
-│   └── parcellations
-│       ├── Schaefer2018_100P...                : atlas file directory
-│           ├── smaps                           : surrogate map directory (contains surrogate maps for given atlas ie.1000)
-│           ├── brain_map.txt                   : needed for BrainSmash   
-│           ├── voxel_coordinates.txt           : needed for BrainSmash
-│           ├── index.npy                       : needed for BrainSmash
-│           ├── distmat.npy                     : needed for BrainSmash
-│           ├── Schaefer2018_100P....nii.gz     : parcelleation file       
-│           └── nimgen_expressions.csv          : gene expression values for given parcellation. (region X gene)
-├── output
-│   └── HCP
-│       └── Schaefer2018_100Pa..
-│           └── VBM
-│               └── S1200_AverageT1wDividedByT2w
-│                   ├──  smap_corr_scores       : correlation scores for each surrogate map and marker (surrogate map X marker)
-│                   ├──  pca_comps              : pca components for original atlas
-│                   ├──  Project_genes          : Webgestalt Result
-│                   ├── gene_by_gene_matrix.csv : gene by gene correlation score for significants
-│                   ├── genes.txt               : significant genes after empirical p-val calculation
-│                   ├── pca_comps               : pca components for original atlas
-│                   └── reg_by_reg_matrix.csv   : region by region correlation score for significants
-└── submit_files                                : submit files for htcondor
-```
+NImGen is a Python-based extensible open source toolbox for elucidating
+neuroimaging-genetics mappings. The toolbox allows extracting gene expression
+levels for parcellations from the [Allen Human Brain Atlas (AHBA)](https://portal.brain-map.org/) with the help
+of the [abagen](https://abagen.readthedocs.io/en/stable/) package. 
+Each gene’s expression levels can be correlated to an MRI
+marker of interest. With the assistance of a gene enrichment analysis
+tool [(WebGestalt)](http://www.webgestalt.org/), the significant genes are examined to obtain higher-order
+biological processes.  To properly account for spatial autocorrelation in the brain,
+and because increasing the number of parcels can inflate statistical significance,
+NImGen uses a permutation-testing approach based on the [BrainSMASH](https://brainsmash.readthedocs.io/en/latest/)
+and [neuromaps](https://netneurolab.github.io/neuromaps/) python packages.
+An efficient, reproducible, and rapid pipeline with several MRI markers may be
+constructed due to the package's modular design and functionality.
 
 
 ## Installing
@@ -64,84 +20,260 @@ NImGen is a Python-based extensible open source toolbox for elucidating neuroima
 NImGen was developed and tested using Python 3.9. Backwards-compatibility with other Python3 versions is expected but not guaranteed.  
 NImGen is most easily installed via GitHub repository  
 
+In order for the nimgen pipeline to interface with [the WebGestalt R package](https://cran.r-project.org/web/packages/WebGestaltR/index.html),
+you will of course need R and the WebGestalt dependency. Now, if you do not have these,
+don't worry. The pipeline will still run as is and give the desired output, except you will not
+get output for gene enrichment analysis. However, you can use the output to
+perform a gene enrichment analysis yourself, if you wish to do so of cource.
+
+If you do want nimgen to perform the gene enrichment analysis via WebGestalt
+for you, then you may want to use a [conda environment](https://docs.conda.io/en/latest/miniconda.html)
+for your installation.
+
+For example, to create and activate a conda environment with the WebGestalt R dependencies, run:
 
 ```
-git clone https://github.com/juaml/nimgen.git
-cd nimgen
-pip install -e .
+conda create -n my_nimgen_environment r-essentials r-base r-WebGestaltR python=3.9
+conda activate my_nimgen_environment
+```
+
+Either way, to install the nimgen package, you can simply install from GitHub using pip:
+
+```
+pip install git+https://github.com/juaml/nimgen.git
 ```
 
 ## Usage
 
-Two components are needed to use the NImGen functionality:  
+Currently, the main pipeline provided by nimgen is intended to run on an [HTCondor-based cluster](https://htcondor.org/),
+but support for parallelisation on local computers or other platforms may still follow.
+To run the nimgen pipeline, you need two input files and one configuration file.
+In this quick tutorial, we will show you how to use a basic nimgen pipeline.
 
-`Atlas/Parcellation`: Brain atlases i.e. Schaefer atlas 100, 500 or 1000. Supported file type: .nii (nifti file).  
-`MRI Marker`: fMRI or dMRI marker/weights. Nifti of voxel based morphometry as e.g. outputted by CAT. Extracts measures of region-wise gray matter density (GMD) with mean aggregation method. Supported file type: .nii (nifti file).  
+### Inputs
 
-Once these are ready you can create surrogate maps for given parcellation file, fetch gene expression data for surrogate maps, calculate empirical p-value and find significant genes.  
+1. Marker: A brain image/map as NIfTI (.nii) file in MNI152 space. An example could be voxel based morphometry as e.g. outputted by CAT.
+2. Atlas/Parcellation: Brain atlases i.e. Schaefer atlas 100, 500 or 1000 as NIfTI (.nii), again in MNI152 space.  
 
-If you want to use pipeline at once, you can use the command below.  
+### Configuration
 
-```
-./run_analysis_allinone.py PARCEL_FILE MARKER_FILE N_SURROGATE_MAPS=1000 PARTIAL_CORR=True PERFORM_PCA=True N_PCA_COMP=5
-```
-
-However, it is recommended to use seperated jobs. Jobs are separated to four single job to use of computer resources in a most efficient way.  
-
-`job1.py`                             : distance matrix creation for BrainSmash  
-`job2.py`                             : create single surrogate map for given ID (i.e.: 0_smap.nii) and  performs correlation analysis. This job should be repeated for each surrogate map.  
-`job3.py`                             : exports significant genes, GSE analysis (webgestalt), gene coexpression analysis,  region correlation analysis  
-`job4.py`                             : performs PCA  
+The pipeline is configured via a `.yaml` file.
+A basic configuration file for nimgen may look as follows:
 
 ```
-./job1.py PARCEL_FILE MARKER_FILE N_SURROGATE_MAPS=1000
-./job2.py PARCEL_FILE MARKER_FILE 0
-./job3.py PARCEL_FILE MARKER_FILE 
-./job4.py PARCEL_FILE MARKER_FILE partial_correlation=True perform_pca=True n_comps=5 
+name: example_pipeline
+verbosity: INFO
+
+seed: 100
+pipeline:
+    type: "HTCondor"
+    step_1:
+        CPU: 1
+        MEMORY: 8GB
+        DISK: 10GB
+    step_2:
+        CPU: 1
+        MEMORY: 8GB
+        DISK: 10GB
+    step_3:
+        CPU: 1
+        MEMORY: 8GB
+        DISK: 10GB
+    step_4:
+        CPU: 1
+        MEMORY: 8GB
+        DISK: 10GB
+
+conda_env: "my_nimgen_environment"
+
+markers:
+    - path: "example_marker.nii"
+      parcellation: 
+        - "example_atlas.nii"
+
+n_surrogate_maps: 100
+
+correlation_method:
+    - spearman
+
+alpha:
+    - 0.05
 ```
 
-for detailed information please check `examples` folder.
-
-## Creation of submit files for `HT_CONDOR`      
-
-Edit `parcel_and_markers variable` in `create_submit_file.py` and run file.
-It will create 4 seperated condor_submit file.
+Let's quickly discuss each field and its signifiance. At the top part of the file you see 
+these three fields:
 
 ```
-parcels_and_markers = [
-        ("input/parcellations/PARCEL_DIR/PARCEL_NAME.nii", "input/markers/HCP/FC/MARKER.nii"),
-        ("input/parcellations/PARCEL_DIR/PARCEL_NAME.nii",    "input/markers/HCP/VBM/MARKER.nii"),
-    ]
+name: example_pipeline
+verbosity: INFO
+
+seed: 100
 ```
 
-## Output Structure  
+The `name` field specifies the name of your pipeline and can be any arbitrary string that you like.
+In this case, the configuration file will tell nimgen to create a folder called `example_pipeline` with
+all pipeline related files inside it.
+The `verbosity` field will tell nimgen how verbose logging output should be when running the individual pipeline
+steps. Possible values here are any of the following: `{DEBUG,INFO,WARNING,ERROR}`.
+The `seed` field sets a random seed and is important for the creation of permutation-based null maps,
+as of course, randomness is involved in this step.
 
-###### Parcellation specific (project_dir/input/parcellations/..)  
-`distmat.npy & index.npy`: distance-matrix-related memory-mapped files for volumetric data. These files are created by **BrainSmash** package with **brainsmash.workbench.geo.volume** function and used as inputs to **brainsmash.mapgen.sampled.Sampled** function. File size is ~140 GB.   
-`brain_map.txt`: Indicates parcel number of each voxel. Created by export_voxel_coordinates function.  
-`voxel_coordinates.txt`: XYZ voxel coordinates from every voxel within an ROI image consisting of ones and zeros based on the parcellation file. Created by export_voxel_coordinates function.  
-`smaps`: Contains surrogate maps for given parcellation file and expression file specific for parcellation file. For each surrogate map there should be a unique ID i.e. 1_smap.nii.   
+Next, you can see a rather large block, specifying some more details of the pipeline.
+Importantly, you can see the `type` key. Currently, this can only be set to "HTCondor",
+but other pipeline types will hopefully soon follow.
+Below, you can see `CPU`, `MEMORY`, and `DISK` specifications for each pipeline step.
+Their values should be a number with a unit as displayed below.
+We will talk about the pipeline steps shortly.
 
-###### Marker specific
-`smap_corr_scores`: Contains correlation score files for each surrogate map X marker. (function: generate_surrogate_map and get_corr_scores)  
-`pca_comps`              : pca components for original atlas (function: get_corr_scores)  
-`project_genes`          : Gene set enrichment analysis result, Created by run_webgestalt function. (function: run_webgestalt)  
-`genes.txt` : Searches .csv (correlation scores) files in output directory, concats all gene correlation scores of surrogate maps. Exports significant genes based on the all correlation scores for each surrogate map. Applies FDR and export signigicant gene list to genes.txt file. (function: export_significant_genes)  
-`pca_comps`               : pca components for original atlas. (function: get_corr_scores)  
-`reg_by_reg_matrix.csv`   : region by region correlation score for significant genes. (function: correlated_gene_expression)  
- `gene_by_gene_matrix.csv` : gene by gene correlation score for significant genes. (function: gene_coexpression)  
+```
+pipeline:
+    type: "HTCondor"
+    step_1:
+        CPU: 1
+        MEMORY: 8GB
+        DISK: 10GB
+    step_2:
+        CPU: 1
+        MEMORY: 8GB
+        DISK: 10GB
+    step_3:
+        CPU: 1
+        MEMORY: 8GB
+        DISK: 10GB
+    step_4:
+        CPU: 1
+        MEMORY: 8GB
+        DISK: 10GB
+```
 
-## Allen Brain Atlas 
+Below this larger pipeline block, you can see a field specifying a conda environment:
 
-Please get the `normalized microarray data` for all the subjects from here:  https://human.brain-map.org/static/download  
+```
+conda_env: "my_nimgen_environment"
+```
 
-Put all of them in a single directory and decompress. The directory should be in the same directory with NImGen package. (check FileTree)  
+However, if you dont use conda, you can also specify a path to a python venv as follows:
+(Note that `path_to_venv` is the field/key and `path/to/my/project/venv` is the actual path to source the venv)
 
-You will have to provide this directory to the functions calls that get the gene expression data.  
+```
+path_to_venv: path/to/my/project/venv
+```
+
+In addition, you may also explicitly want to set your path to `Rscript` for the `WebGestaltR` gene enrichment analysis.
+By default this will be set to `/usr/bin/env Rscript`.
+
+Lastly, you can see this block in the yaml file:
+
+```
+markers:
+    - path: "example_marker.nii"
+      parcellation: 
+        - "example_atlas.nii"
+
+n_surrogate_maps: 100
+
+correlation_method:
+    - spearman
+
+alpha:
+    - 0.05
+```
+
+The `markers` field specifies a list of markers (note the dash before the `path` key indicating a list.)
+Each marker in turn is a dictionary, consisting of a path to the marker (this is the `path` key) and a 
+list of parcellations. That is, for each marker, the pipeline will generate output for every parcellation listed there.
+The list of parcellations is simply a list of paths to each parcellation. Note that each path is evaluated in the working
+directory in which you run `nimgen create` (we will talk about this command soon). 
+
+The field `n_surrogate_maps` specifies how many null maps you want to create for empirical p-value computation.
+The `correlation_method` field takes a list of correlation methods and will output results for each.
+Currently supported correlation methods are: `{spearman, pearson}`.
+
+Lastly, the `alpha` field gives a list of alpha levels of significance for which gene enrichment analysis can be run.
+
+### Run a basic pipeline
+
+As mentioned above, to run a nimgen pipeline you need at least two inputs: An atlas file and a marker file (both are NIfTI files in MNI152 space.)
+Now, say you have two such files, and save them with your above yaml configuration in your current working directory, then
+running `ls` will yield the following output:
+
+```
+example_atlas.nii  example_config.yaml  example_marker.nii
+```
+
+In order to prepare a pipeline simply run `nimgen create example_config.yaml`.
+When running `ls`, you will see that nimgen created an additional folder in your
+current working directory:
+
+`example_atlas.nii  example_config.yaml  example_marker.nii  example_pipeline `
+
+If you run `tree example_pipeline`, you can see the contents of that directory:
+
+```bash
+example_pipeline
+├── all_gene_outputs
+├── example_config.yaml
+├── markers
+│   └── example_marker
+│       ├── example_marker.nii
+│       ├── nullmaps
+│       │   └── example_atlas
+│       │       └── nullmaps_results
+│       └── outputs
+│           └── example_atlas
+├── parcellations
+│   └── example_atlas
+│       └── example_atlas.nii
+└── submit_files
+    ├── logs
+    ├── nimgen.dag
+    ├── run_in_venv.sh
+    ├── step_1.submit
+    ├── step_2.submit
+    ├── step_3.submit
+    └── step_4.submit
+
+12 directories, 9 files
+```
+
+The `all_gene_outputs` folder is used to collect all output specific to all
+genes used in the AHBA, and as such are not specific to any one marker.
+The `markers` directory collects intermediate data such as `nullmaps` as well
+as marker specific output for each marker specified in the configuration file.
+Importantly, the `submit_files` directory collects all condor_submit files and
+and executable called `run_in_venv.sh`. This executable is used to ensure that
+each job is executed in the specified environment. To run all jobs, you can
+simply go ahead and submit the `nimgen.dag` file:
+```
+cd example_pipeline/submit_files
+condor_submit_dag nimgen.dag
+```
+
+Alternatively, you can also submit each individual step yourself. For example:
+```
+condor_submit step1.submit
+```
+Or to submit only one set of parameters for each step, have a peak into each submit file and
+look at the commands. For example from `step1.submit` you can extract the following command
+and run it (make sure you are in the correct environment):
+
+```
+nimgen -v INFO step_1 ../../example_pipeline/parcellations/example_atlas/example_atlas.nii
+```
 
 ## Core development team
 Kaustubh Patil, Fede Raimondo, Leonard Sasse, Talip Yasir Demirtaş
 
 ## Support
-If you run into a problem or identify a bug in the source code, please send the authors an email or create a new issue on GitHub.
+If you run into a problem or identify a bug in the source code, or if you have any
+questions about nimgen's internals or its output, 
+please send the authors an email or create a new issue on GitHub.
 
+## References
+
+* [Generative modeling of brain maps with spatial autocorrelation](https://www.sciencedirect.com/science/article/pii/S1053811920305243)
+* [Standardizing workflows in imaging transcriptomics with the abagen toolbox](https://www.biorxiv.org/content/10.1101/2021.07.08.451635v1)
+* [A practical guide to linking brain-wide gene expression and neuroimaging data](https://www.sciencedirect.com/science/article/abs/pii/S1053811919300114?via%3Dihub)
+* [An anatomically comprehensive atlas of the adult human brain transcriptome](https://www.nature.com/articles/nature11405)
+* [neuromaps: structural and functional interpretation of brain maps](https://www.nature.com/articles/s41592-022-01625-w)
+* [WebGestalt 2017: a more comprehensive, powerful, flexible and interactive gene set enrichment analysis toolkit](https://academic.oup.com/nar/article/45/W1/W130/3791209?login=false)

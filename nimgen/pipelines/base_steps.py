@@ -3,11 +3,13 @@
 # Authors: Leonard Sasse <l.sasse@fz-juelich.de>
 # License: AGPL
 
-import glob
+import logging
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from neuromaps.parcellate import Parcellater
 from statsmodels.stats.multitest import multipletests
 
 from ..expressions import (
@@ -15,15 +17,13 @@ from ..expressions import (
     gene_coexpression,
     gene_expression_correlations,
 )
-from ..smash import (
-    export_voxel_coordinates,
-    generate_distance_matrices,
-    generate_surrogate_map,
-)
+from ..smash import cached_distance_matrix, cached_null_maps
 from ..statistics import empirical_pval
-from ..utils import logger, remove_nii_extensions
+from ..utils import remove_nii_extensions
 from ..web import run_webgestalt
-from .base import _specific_marker_output
+
+
+logger = logging.getLogger(__name__)
 
 
 def _save_correlation_matrices(
@@ -34,7 +34,13 @@ def _save_correlation_matrices(
     metric="spearman",
 ):
 
-    # calculate gene co-expression based on significant genes
+    path_all_genes_based_output = (
+        specific_marker_output.parent.parent.parent / "all_gene_outputs"
+    )
+    logger.info(
+        "Calculate gene co-expression and region-by-region gene"
+        " expression correlation profiles based on significant genes."
+    )
     corr_gene_exp_matrix = correlated_gene_expression(
         parcellation_file, significant_genes, metric=metric
     )
@@ -61,36 +67,37 @@ def _save_correlation_matrices(
     )
 
     # save matrices based on all genes
-    all_gene_coexp = os.path.join(
-        specific_marker_output,
-        f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv",
+    all_gene_coexp = (
+        path_all_genes_based_output
+        / f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv"
     )
-    if not os.path.isfile(all_gene_coexp):
+    if not all_gene_coexp.is_file():
+        logger.info("Calculate gene co-expression for all genes!")
         coexp_all_matrix = gene_coexpression(
             parcellation_file, "all", metric=metric
         )
         coexp_all_matrix.to_csv(all_gene_coexp, sep="\t")
 
-    all_genes_roixroi = os.path.join(
-        specific_marker_output,
-        f"all-genes_region_by_region_correlation_matrix_{metric}.tsv",
+    all_genes_roixroi = (
+        path_all_genes_based_output
+        / f"all-genes_region_by_region_correlation_matrix_{metric}.tsv"
     )
-    if not os.path.isfile(all_genes_roixroi):
+    if not all_genes_roixroi.is_file():
+        logger.info(
+            "Calculate region-by-region gene expression "
+            "correlation profiles for all genes!"
+        )
         corr_all_gene_exp_matrix = correlated_gene_expression(
             parcellation_file, "all", metric=metric
         )
         corr_all_gene_exp_matrix.to_csv(all_genes_roixroi, sep="\t")
 
 
-def step_1(parcellation_file):
-    """Run step 1 in HTCondor-based pipeline.
+def _step_1(parcellation_file):
+    """Run step 1 in nimgen pipeline.
 
     Create a distance matrix for a given parcellation scheme so that surrogate
-    parcellations can be created using BrainSmash. This step is quite time
-    intensive and to speed up the following steps and their (potential)
-    re-computation it is recommended to cache the results from this step on
-    disk. However, depending on size and resolution of the parcellation nifti
-    file this can take a lot of space (~100GB).
+    parcellations can be created using Neuromaps/BrainSmash.
 
     Parameters
     ----------
@@ -98,43 +105,56 @@ def step_1(parcellation_file):
         path to the parcellation file within the nimgen pipeline project
         directory
 
-
     Returns
     -------
     None; saves distance matrices in the appropriate parcellation directory
     """
-    if not os.path.isfile(parcellation_file):
+    if Path(parcellation_file).is_file():
         raise ValueError("Input file not found.")
 
-    path_to_parc, _ = os.path.split(parcellation_file)
-    # `generate_distance_matrix` already checks if the distance matrix exists,
-    # so no further checks necessary here.
-    # Return values are not needed here, brainsmash already saves these files
-    # in specified path
-    export_voxel_coordinates(parcellation_file, path_to_parc)
-    generate_distance_matrices(path_to_parc)
+    logger.info("Checking for cached distance matrix...")
+    cached_distance_matrix(parcellation_file)
+    logger.info("Done!")
 
 
-def step_2(
+def _step_2(parcellation_file, marker_file, n_perm, seed):
+    """Run step 2 in nimgen pipeline.
+
+    Generate null maps for a combination of parcellation and marker.
+
+    Parameters
+    ----------
+    parcellation_file : str or os.PathLike
+        path to the parcellation file within the nimgen pipeline project
+        directory.
+    marker_file : str or os.PathLike
+        path to the marker file within the nimgen pipeline project
+        directory.
+    n_perm : int
+        number of null maps to generate.
+    seed : int
+        random seed for null map generation.
+    """
+
+    logger.info("Checking for cached distance null maps...")
+    dist_mat = cached_distance_matrix(parcellation_file)
+    cached_null_maps(
+        parcellation_file, marker_file, dist_mat, n_perm, seed=seed
+    )
+    logger.info("Done!")
+
+
+def _step_3(
     parcellation_file,
     marker_file,
-    marker_dir,
-    output_dir,
+    n_perm,
     smap_id,
+    seed,
     allen_data_dir,
-    correlation_method="spearman",
+    correlation_method,
     n_pca_covariates=None,
-    **kwargs,
 ):
-    """Run step 2 in HTCondor-based pipeline.
-
-    Create a single instance of a surrogate map using the distance matrix
-    generated in step 1. Depending on the number of permutations desired for
-    statistical testing and calculation of empirical p-values in the following
-    mass-univariate correlation analysis, this step should be repeated n times,
-    each time with a unique ID, i.e. for n jobs use str(i) for i in range(n).
-    The surrogate map will then be used for a correlation analysis and results
-    will be saved for later use.
+    """Run step 3 in nimgen pipeline.
 
     Parameters
     ----------
@@ -142,12 +162,12 @@ def step_2(
         Path to the parcellation nifti file
     marker_file : str or os.PathLike
         Path to the marker nifti file
-    marker_dir : str
-        root directory of all markers in the nimgen pipeline
-    output_dir : str
-        root directory of all outputs of the nimgen pipeline
+    n_perm : int
+        number of null maps that were created in the first place.
     smap_id : int
         unique number identifying the surrogate map
+    seed : int
+        seed for operations involving randomness
     allen_data_dir : str or os.PathLike
         root directory of AHBA data
     correlation_method : str
@@ -155,12 +175,6 @@ def step_2(
     n_pca_covariates : int or None
         number of components gene expression components (after pca) to include
         as covariates in the partial correlation between marker and genes.
-    partial_correlation : bool
-        whether to perform a partial correlation (given a covariate i.e. pca)
-        or not
-    **kwargs
-        keyword arguments passed to nimgen.smash.generate_surrogate_map
-        and thereby to brainsmash.mapgen.sampled.Sampled
 
     Returns
     -------
@@ -168,41 +182,12 @@ def step_2(
     directory
     """
     logger.info("Starting surrogate correlation analysis...")
-    logger.info("------------------------------------------")
     for key, value in locals().items():
-        logger.info(f"{key}     ==================      {value}")
+        logger.info(f"{key} = {value}")
 
     partial_correlation = False if n_pca_covariates is None else True
     if not os.path.isfile(parcellation_file):
         raise ValueError("Input file not found.")
-
-    path_to_parc, name_parc_ext = os.path.split(parcellation_file)
-    name_parc = remove_nii_extensions(name_parc_ext)
-
-    path_to_specific_marker_output = _specific_marker_output(
-        marker_file, marker_dir, output_dir, name_parc
-    )
-
-    voxel_parcel_file = os.path.join(path_to_parc, "brain_map.txt")
-    matrix_files = {
-        "D": os.path.join(path_to_parc, "distmat.npy"),
-        "index": os.path.join(path_to_parc, "index.npy"),
-    }
-
-    smap_id_corr_score_str = (
-        f"smapid-{smap_id}-correlationmethod-{correlation_method}"
-        f"_npcacovariates-{n_pca_covariates}"
-    )
-
-    # generate surrogate map for given atlas
-    surrogate_map = generate_surrogate_map(
-        parcellation_file,
-        smap_id,
-        path_to_parc,
-        voxel_parcel_file,
-        matrix_files,
-        **kwargs,
-    )
 
     if n_pca_covariates is None:
         perform_pca = False
@@ -214,11 +199,20 @@ def step_2(
         pca_dict = {"n_components": n_pca_covariates}
         perform_pca = True
 
+    dist_mat = cached_distance_matrix(parcellation_file)
+    null_maps = cached_null_maps(
+        parcellation_file, marker_file, dist_mat, n_perm, seed=seed
+    )
+
+    specific_null_map = null_maps[:, smap_id]
+    nm_parcellater = Parcellater(parcellation_file, space="MNI152")
+    null_map_nifti = nm_parcellater.inverse_transform(specific_null_map)
+
+    logger.info("Running the correlation analysis for the null map.")
     # perform correlation analysis for given surrogate map and marker
     all_genes_corr_scores, _, _ = gene_expression_correlations(
-        marker=os.path.join(marker_dir, marker_file),
+        marker=null_map_nifti,
         atlas=parcellation_file,
-        atlas_marker=surrogate_map,
         aggregation_method="mean",
         allen_data_dir=allen_data_dir,
         correlation_method=correlation_method,
@@ -226,31 +220,39 @@ def step_2(
         pca_dict=pca_dict,
         partial_correlation=partial_correlation,
     )
+    logger.info("Done!")
 
     # save correlation results for all genes for this surrogate map and these
     # settings
-    all_genes_corr_scores.to_csv(
-        os.path.join(
-            path_to_specific_marker_output,
-            "smap_corr_scores",
-            f"{smap_id_corr_score_str}.tsv",
-        ),
-        sep="\t",
+
+    name_parc = remove_nii_extensions(Path(parcellation_file).name)
+    outpath = (
+        Path(marker_file).parent / "nullmaps" / name_parc / "nullmaps_results"
     )
+    smap_id_corr_score_str = (
+        f"smapid-{smap_id}-correlationmethod-{correlation_method}"
+        f"_npcacovariates-{n_pca_covariates}_seed-{seed}"
+    )
+    if not outpath.exists():
+        outpath.mkdir(parents=True)
+
+    outfile = outpath / f"{smap_id_corr_score_str}.tsv"
+    logger.info(f"Saving null map results at {outfile}")
+    all_genes_corr_scores.to_csv(outfile, sep="\t")
 
 
-def step_3(
+def _step_4(
     parcellation_file,
     marker_file,
-    marker_dir,
-    output_dir,
-    r_path,
-    allen_data_dir=None,
-    correlation_method="spearman",
-    alpha=0.05,
+    n_perm,
+    seed,
+    allen_data_dir,
+    correlation_method,
+    alpha,
     n_pca_covariates=None,
+    r_path="Rscript",
 ):
-    """Run step 3 in HTCondor-based pipeline.
+    """Run step 4 in HTCondor-based pipeline.
 
     Perform mass-univariate correlation analysis, calculate empirical p-values
     using surrogate results, and export significant genes, as well as gene
@@ -262,10 +264,10 @@ def step_3(
         Path to the parcellation nifti file
     marker_file : str or os.PathLike
         Path to the marker nifti file
-    marker_dir : str
-        root directory of all markers in the nimgen pipeline
-    output_dir : str
-        root directory of all outputs of the nimgen pipeline
+    n_perm : int
+        number of null maps to use
+    seed : int
+        seed for randomness
     allen_data_dir : str or os.PathLike | None (default)
         root directory of AHBA data
     r_path : str or os.PathLike
@@ -279,38 +281,40 @@ def step_3(
         as covariates in the partial correlation between marker and genes.
 
     """
+    marker_folder_output = Path(marker_file).parent / "outputs"
+    name_parc = remove_nii_extensions(Path(parcellation_file).name)
 
-    path_to_parc, name_parc_ext = os.path.split(parcellation_file)
-    name_parc = remove_nii_extensions(name_parc_ext)
+    perm_specific = (
+        marker_folder_output / name_parc / f"nperm-{n_perm}_seed-{seed}"
+    )
+    perm_specific.mkdir(parents=True, exist_ok=True)
 
-    path_to_specific_marker_output = _specific_marker_output(
-        marker_file, marker_dir, output_dir, name_parc
-    )
-    output_parc_copy = os.path.join(
-        path_to_specific_marker_output, name_parc_ext
-    )
-    if not os.path.isfile(output_parc_copy):
-        os.system(f"cp {parcellation_file} {output_parc_copy}")
+    # i do not use glob here because i want to be explicit about the number of
+    # null maps to use
+    logger.info("Loading null map results.")
+    glob_files = [
+        Path(marker_file).parent
+        / "nullmaps"
+        / name_parc
+        / "nullmaps_results"
+        / (
+            f"smapid-{smap_id}-correlationmethod-{correlation_method}"
+            f"_npcacovariates-{n_pca_covariates}_seed-{seed}.tsv"
+        )
+        for smap_id in range(n_perm)
+    ]
 
     partial_correlation = False if n_pca_covariates is None else True
-    glob_files = glob.glob(
-        os.path.join(
-            path_to_specific_marker_output,
-            "smap_corr_scores",
-            f"smapid-*-correlationmethod-{correlation_method}"
-            f"_npcacovariates-{n_pca_covariates}.tsv",
-        )
+    assert len(glob_files) == n_perm, (
+        f"n_perm = {n_perm}, and there are only "
+        f"{len(glob_files)} null map results!"
     )
 
     # read, concat, from the smashed correlation df
     smashed_data = []
     for f in glob_files:
-        smashed_results = os.path.join(
-            path_to_specific_marker_output, "smap_corr_scores", f
-        )
-        smashed_data.append(
-            pd.read_csv(smashed_results, sep="\t", index_col=0)
-        )
+        smashed_data.append(pd.read_csv(f, sep="\t", index_col=0))
+
     smashed_corr_df = pd.concat(smashed_data, axis=1)
 
     # prepare output directories
@@ -328,13 +332,19 @@ def step_3(
         pca_dict = {"n_components": n_pca_covariates}
         perform_pca = True
 
-    # perform correlation analysis for given surrogate map and marker
+    logger.info(f"perform_pca = {perform_pca}")
+    logger.info(f"n_pca_covariates = {n_pca_covariates}")
+    logger.info(f"pca_dict = {pca_dict}")
+
+    logger.info(
+        "Running correlation analysis between marker and gene expressions."
+    )
     (
         all_genes_corr_scores,
         _,
         covariates_dict_of_niftis,
     ) = gene_expression_correlations(
-        marker=os.path.join(marker_dir, marker_file),
+        marker=marker_file,
         atlas=parcellation_file,
         aggregation_method="mean",
         allen_data_dir=allen_data_dir,
@@ -351,6 +361,7 @@ def step_3(
         f"{correlation_method}_value"
     ].T.values
 
+    logger.info("Calculating empirical p-values...")
     empirical_pvalues = empirical_pval(smashed_correlations, real_correlations)
     all_genes_corr_scores["empirical_pvals"] = empirical_pvalues
     reject, corrected, *_ = multipletests(
@@ -365,29 +376,25 @@ def step_3(
 
     significant_genes_df = all_genes_corr_scores[reject]
     significant_genes = significant_genes_df.index.to_list()
+    logger.info("Done")
 
     if partial_correlation and perform_pca:
-        output_path_comps = os.path.join(
-            path_to_specific_marker_output,
-            "pca_covariates",
-            f"{n_pca_covariates}_component_pca",
+        output_path_comps = (
+            perm_specific
+            / "pca_covariates"
+            / f"{n_pca_covariates}_component_pca"
         )
-        output_path = os.path.join(
-            output_path_comps, correlation_method, f"alpha-{alpha}"
-        )
+        output_path = output_path_comps / correlation_method / f"alpha-{alpha}"
     else:
-        output_path = os.path.join(
-            path_to_specific_marker_output,
-            correlation_method,
-            f"alpha-{alpha}",
-        )
+        output_path = perm_specific / correlation_method / f"alpha-{alpha}"
 
     if not os.path.isdir(output_path):
-        os.makedirs(output_path)
+        output_path.mkdir(parents=True)
 
-    genes_file = os.path.join(
-        output_path, "significant-empirical-pvalue-fdr-corrected_genes.txt"
+    genes_file = (
+        output_path / "significant-empirical-pvalue-fdr-corrected_genes.txt"
     )
+    logger.info(f"Significant genes can be found at {output_path}")
     np.savetxt(genes_file, significant_genes, fmt="%s")
 
     # Run gene set enrichment analysis via webgestalt R package
@@ -395,19 +402,17 @@ def step_3(
 
     if isinstance(covariates_dict_of_niftis, dict):
         for key, value in covariates_dict_of_niftis.items():
-            compfile = os.path.join(output_path_comps, f"{key}.nii.gz")
+            compfile = output_path_comps / f"{key}.nii.gz"
             if not os.path.isfile(compfile):
                 value.to_filename(compfile)
 
-    genes_tsv = os.path.join(
-        output_path, f"genes_{correlation_method}_and_pvalues.tsv"
-    )
+    genes_tsv = output_path / f"genes_{correlation_method}_and_pvalues.tsv"
     all_genes_corr_scores.to_csv(genes_tsv, sep="\t")
     for metric in ["spearman", "pearson"]:
         _save_correlation_matrices(
             parcellation_file,
             significant_genes,
             output_path,
-            path_to_specific_marker_output,
+            marker_folder_output,
             metric=metric,
         )

@@ -6,20 +6,13 @@
 #          Vera Komeyer <v.komeyer@fz-juelich.de>
 # License: AGPL
 
-import logging
 import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from neuromaps.parcellate import Parcellater
 from nilearn import image
-
-
-logger = logging.getLogger(name="nimgen")
-logger.setLevel(logging.INFO)
-# console = logging.StreamHandler()
-# logger.addHandler(console)
-logger.propagate = False
 
 
 def remove_nii_extensions(nii_file):
@@ -76,6 +69,45 @@ def covariates_to_nifti(parcellation, covariates_df):
         covariate_niftis[covariate_label] = pc_nii
 
     return covariate_niftis
+
+
+def _cols_to_nifti(filename, parcellation_file, outfolder, n_cols=None):
+    """Convert columns of an array into nifti files.
+
+    Parameters
+    ----------
+    filename : str or os.PathLike
+        File name of numpy (.npy) file with array.
+    parcellation_file : str or os.PathLike
+        File name of parcellation to use.
+    outfolder : str or os.PathLike
+        Directory in which to save output.
+    n_cols : int or None
+        How many columns to convert.
+        If None, it will do all.
+
+    """
+    # Create array specific outpath.
+    filename = Path(filename)
+    array_name = Path(filename.name).stem
+    outfolder = Path(outfolder)
+    assert outfolder.exists(), f"{outfolder} does not exist."
+    outfolder = outfolder / array_name
+    outfolder.mkdir(exist_ok=True)
+
+    # load array and convert
+    array = np.load(filename)
+    _, cols = array.shape
+    if n_cols is None:
+        n_cols = cols
+
+    assert isinstance(n_cols, int), "n_cols should be an integer."
+    for idx in range(n_cols):
+        column = array[:, idx]
+        nm_parcellater = Parcellater(parcellation_file, space="MNI152")
+        nifti = nm_parcellater.inverse_transform(column)
+        outfile = outfolder / f"{array_name}_column-{idx}.nii.gz"
+        nifti.to_filename(outfile)
 
 
 def _read_sign_genes(sign_genes):

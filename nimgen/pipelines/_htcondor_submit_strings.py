@@ -2,16 +2,18 @@ TEMPLATE_DAG = """
 JOB  A  step_1.submit
 JOB  B  step_2.submit
 JOB  C  step_3.submit
+JOB  D  step_4.submit
 
 PARENT A CHILD B
 PARENT B CHILD C
+PARENT C CHILD D
 """
 
 TEMPLATE_JOB = """
 # The environment
-executable = /usr/bin/bash
 transfer_executable = False
 initial_dir={}
+executable = $(initial_dir)/run_in_venv.sh
 universe = vanilla
 getenv = True
 

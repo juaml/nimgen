@@ -4,11 +4,13 @@
 #          Leonard Sasse <l.sasse@fz-juelich.de>
 # License: AGPL
 
+import logging
 import os
 import subprocess
 from time import perf_counter
 
-from .utils import logger
+
+logger = logging.getLogger(__name__)
 
 
 def r_script_file():
@@ -25,7 +27,7 @@ def r_script_file():
 
 def run_webgestalt(
     genes_file="genes.txt",
-    r_path="/usr/bin/Rscript",
+    r_path="/usr/bin/env Rscript",
     r_arg="--vanilla",
     r_exec="./../r_script/webgestalt.r",
 ):

@@ -4,21 +4,23 @@
 # License: AGPL
 
 import os
+import shutil
 import sys
 import tempfile
+from pathlib import Path
 
-import pytest
 from nilearn import datasets
 
 from nimgen import nimgen
 
 
-YAML_STRING = """project_path: "{tmp}"
-
+YAML_STRING = """name: {name}
+verbosity: INFO
+seed: 100
 pipeline:
     type: "HTCondor"
     step_1:
-        CPU: 8
+        CPU: 1
         MEMORY: 64
         DISK: 100
     step_2:
@@ -29,22 +31,19 @@ pipeline:
         CPU: 1
         MEMORY: 64
         DISK: 10
+    step_4:
+        CPU: 1
+        MEMORY: 64
+        DISK: 10
 
-marker_dir: "{tmp}/markers"
-r_path: "/r/path"
-path_to_venv: "venv"
+conda_env: "nimgen_venv"
 
-parcellation_files:
-    "{parcellation_file}":
-        - "{marker_file}"
+markers:
+    - path: {marker_file}
+      parcellation:
+        - {parcellation_file}
 
 n_surrogate_maps: 1000
-n_pca_covariates:
-    - None
-    - 1
-    - 3
-    - 5
-    - 10
 
 correlation_method:
     - spearman
@@ -52,21 +51,18 @@ correlation_method:
 
 alpha:
     - 0.05
-    - 0.01
 """
 
 
 def test_cli():
     """Test CLI."""
+    name_of_pipeline = "mockup"
     with tempfile.TemporaryDirectory() as tmp:
         sys.argv = [sys.argv[0]]
-        sys.argv.append("--create")
+        sys.argv.append("create")
+        sys.argv.append("-f")  # force overwriting previous test runs
         sys.argv.append(f"{tmp}/my_yaml.yaml")
         args = nimgen.parse_args()
-
-        with pytest.raises(FileNotFoundError, match="my_yaml.yaml not found!"):
-            args.create = os.path.join(tmp, "my_yaml.yaml")
-            nimgen.validate_args(args)
 
         datasets.fetch_atlas_schaefer_2018(100, data_dir=tmp)["maps"]
         parc_path = os.path.join(
@@ -75,17 +71,38 @@ def test_cli():
             "Schaefer2018_100Parcels_7Networks_order_FSLMNI152_1mm.nii.gz",
         )
 
-        os.mkdir(f"{tmp}/markers")
-        os.system(f"touch {tmp}/markers/marker.nii")
+        marker_file = Path(tmp) / "marker.nii"
+        marker_file.touch()
 
-        with open(args.create, "w") as f:
+        with open(args.config_yaml, "w") as f:
             f.write(
                 YAML_STRING.format(
+                    name=name_of_pipeline,
                     tmp=tmp,
                     parcellation_file=parc_path,
-                    marker_file="marker.nii",
+                    marker_file=marker_file,
                 )
             )
 
-        nimgen.validate_args(args)
         nimgen.main()
+
+        mockup_path = Path(name_of_pipeline)
+        all_gene_output_path = mockup_path / "all_gene_outputs"
+        marker_path = mockup_path / "markers" / "marker" / "marker.nii"
+        parc_path = (
+            mockup_path
+            / "parcellations"
+            / "Schaefer2018_100Parcels_7Networks_order_FSLMNI152_1mm"
+            / "Schaefer2018_100Parcels_7Networks_order_FSLMNI152_1mm.nii.gz"
+        )
+        yaml_path = mockup_path / "my_yaml.yaml"
+        log_path = mockup_path / "submit_files" / "logs"
+
+        assert mockup_path.exists()
+        assert all_gene_output_path.exists()
+        assert marker_path.exists()
+        assert parc_path.exists()
+        assert yaml_path.exists()
+        assert log_path.exists()
+
+        shutil.rmtree(name_of_pipeline)

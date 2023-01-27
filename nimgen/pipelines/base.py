@@ -1,27 +1,13 @@
-"""Define base pipeline based on an abstract base class."""
+"""Define base pipeline."""
 
 # Authors: Leonard Sasse <l.sasse@fz-juelich.de>
 # License: AGPL
 
 import os
 import shutil
-from ast import literal_eval
-from itertools import product
 from pathlib import Path
 
 from ..utils import remove_nii_extensions
-
-
-def _specific_marker_output(marker_file, marker_dir, output_dir, name_parc):
-    # step 1 is taken care of by the step itself
-    # step 2:
-    marker_file = os.path.join(marker_dir, marker_file)
-    _, marker_structure = (
-        Path(marker_file).absolute().as_posix().split(marker_dir)
-    )
-    head, tail = os.path.split(marker_structure[1:])
-    marker_name, _ = os.path.splitext(tail)
-    return os.path.join(output_dir, name_parc, head, marker_name)
 
 
 class Pipeline:
@@ -35,44 +21,48 @@ class Pipeline:
 
     def __init__(
         self,
-        project_path,
-        marker_dir,
         pipeline,
-        r_path,
-        parcellation_files,
+        markers,
+        seed=1,
+        verbosity="INFO",
+        name="nimgen",
+        r_path=None,
         path_to_venv=None,
-        path_to_conda_env=None,
+        conda_env=None,
         n_surrogate_maps=100,
         correlation_method=None,
         alpha=0.05,
         n_pca_covariates=None,
-        pipeline_dir="pipeline",
         output_dir="output",
         config_dict=None,
+        ahba_dir=None,
     ):
         """Initialise pipeline directory."""
-        self.project_path = os.path.abspath(project_path)
         self.pipeline = pipeline
-        self.marker_dir = marker_dir
-        self.pipeline_dir = pipeline_dir
         self.output_dir = output_dir
-        self.parcellations_dir = "parcellations"
-        self.parcellation_files = parcellation_files
         self.config_dict = config_dict
-        self.parcellation_marker_dict = {}
-        self.r_path = os.path.abspath(r_path)
+        self.r_path = r_path
         self.path_to_venv = path_to_venv
-        self.path_to_conda_env = path_to_conda_env
+        self.conda_env = conda_env
         self.n_surrogate_maps = n_surrogate_maps
+        self._init_dir = Path(os.getcwd())
+        self.seed = int(seed)
+        self.verbosity = verbosity
+        self.name = name
 
+        # take care of virtual environment to run in
         if self.path_to_venv is not None:
             self.conda = False
             self.path_to_venv = os.path.abspath(self.path_to_venv)
         else:
-            assert self.path_to_conda_env is not None
-            self.path_to_conda_env = os.path.abspath(self.path_to_conda_env)
+            assert conda_env is not None
+            self.conda_env = self.conda_env
             self.conda = True
 
+        if r_path is None:
+            self.r_path = "/usr/bin/env Rscript"
+
+        # correlation analysis parameters
         if correlation_method is None:
             self.correlation_method = ["spearman"]
         else:
@@ -88,213 +78,102 @@ class Pipeline:
 
         self.alpha = alpha
 
+        # potential (still experintal) pca removal
         if not isinstance(n_pca_covariates, list):
             n_pca_covariates = [n_pca_covariates]
         elif n_pca_covariates == 0 or n_pca_covariates is None:
             n_pca_covariates = [None]
         self.n_pca_covariates = n_pca_covariates
 
-        self.allen_data_dir = os.path.join(self.project_path, "allen_data")
-        if not os.path.isdir(self.project_path):
-            raise FileNotFoundError(f"{self.project_path} not found!")
+        # prepare markers (and parcellations)
+        self.markers = markers
 
-        if not os.path.isdir(self.marker_dir):
-            raise FileNotFoundError(f"{self.marker_dir} not found!")
+        self.jobs_dir = Path(".") / name
+        self.markers_dir = self.jobs_dir / "markers"
+        self.parcellations_dir = self.jobs_dir / "parcellations"
+        self.all_gene_outputs = self.jobs_dir / "all_gene_outputs"
+        self.ahba_dir = ahba_dir
+        if self.ahba_dir is None:
+            self.ahba_dir = self.jobs_dir / "AHBA"
 
-        for dir in [
-            self.output_dir,
-            self.parcellations_dir,
-            self.pipeline_dir,
-        ]:
-            dir = os.path.join(self.project_path, dir)
-            if not os.path.isdir(dir):
-                print(f"Creating {dir}")
-                os.mkdir(dir)
-            else:
-                print(f"{dir} already exists! Skipping creation of dir {dir}")
+    def _prepare_marker_dir(self, marker):
+        """Prepare the marker directory."""
+        marker_path = Path(marker["path"])
+        marker_name = Path(remove_nii_extensions(marker_path)).stem
+        marker_dir = self.markers_dir / marker_name
+        marker_dir.mkdir()
+        marker_dst = marker_dir / marker_path.name
+        marker_path = marker_path.resolve()
 
-        for parcellation_file in self.parcellation_files.keys():
-            if not os.path.isfile(parcellation_file):
-                FileNotFoundError(f"{parcellation_file} not found!")
-            else:
-                _, parc_file_tail = os.path.split(parcellation_file)
-                parcellation_name = remove_nii_extensions(parc_file_tail)
-                self.parcellation_marker_dict[parcellation_name] = (
-                    parc_file_tail,
-                    self.parcellation_files[parcellation_file],
-                )
-                dir_this_parc = os.path.join(
-                    self.project_path,
-                    self.parcellations_dir,
-                    parcellation_name,
-                )
-                smaps_dir = os.path.join(dir_this_parc, "smaps")
-                if not os.path.isdir(dir_this_parc):
-                    print(f"Creating {dir_this_parc}")
-                    os.mkdir(dir_this_parc)
-                    os.mkdir(smaps_dir)
-                else:
-                    print(
-                        f"{dir_this_parc} already exists!"
-                        f" Skipping creation of dir {dir}"
-                    )
-                    if not os.path.isdir(smaps_dir):
-                        os.mkdir(smaps_dir)
+        shutil.copy(marker_path.as_posix(), marker_dst.as_posix())
+        marker_parcellations = marker["parcellation"]
 
-                parc_file_new = os.path.join(dir_this_parc, parc_file_tail)
-                if not os.path.isfile(parc_file_new):
-                    print(
-                        f"Copying from {parcellation_file} to {dir_this_parc}"
-                    )
-                    shutil.copyfile(parcellation_file, parc_file_new)
-                else:
-                    print(f"{parc_file_new} already exists. Skipping copy.")
+        if isinstance(marker_parcellations, str):
+            marker_parcellations = [marker_parcellations]
 
-        for _, (_, markers) in self.parcellation_marker_dict.items():
-            for marker_file in markers:
-                current_marker = os.path.join(self.marker_dir, marker_file)
-                if not os.path.isfile(current_marker):
-                    raise FileNotFoundError(
-                        "Marker files are interpreted relative to marker_dir."
-                        f"({self.marker_dir})"
-                    )
-
-    def create_output_dirs(self, name_parc, marker_file):
-        """Create output directory structure for a marker and parcellation."""
-        # step 1 is taken care of by the step itself
-        # step 2:
-        output_dir = os.path.join(self.project_path, self.output_dir)
-        specific_marker_output = _specific_marker_output(
-            marker_file, self.marker_dir, output_dir, name_parc
-        )
-        smap_corr_scores = os.path.join(
-            specific_marker_output, "smap_corr_scores"
-        )
-        if not os.path.isdir(smap_corr_scores):
-            os.makedirs(smap_corr_scores)
-
-        # step 3:
-        for n_pca_cov, correlation_method, alpha in product(
-            self.n_pca_covariates, self.correlation_method, self.alpha
-        ):
-
-            if isinstance(n_pca_cov, int):
-                output_path_comps = os.path.join(
-                    specific_marker_output,
-                    "pca_covariates",
-                    f"{n_pca_cov}_component_pca",
-                )
-                output_path = os.path.join(
-                    output_path_comps, correlation_method, f"alpha-{alpha}"
-                )
-
-            elif (n_pca_cov is None) or n_pca_cov == "None":
-                output_path = os.path.join(
-                    specific_marker_output,
-                    correlation_method,
-                    f"alpha-{alpha}",
-                )
-            if not os.path.isdir(output_path):
-                os.makedirs(output_path)
-
-        return output_path
-
-    def _output_exists(self, step, *step_params):
-        check_funcs = [
-            self._output_step_1_exists,
-            self._output_step_2_exists,
-            self._output_step_3_exists,
+        parc_names = [
+            Path(remove_nii_extensions(x)).name for x in marker_parcellations
         ]
-        return check_funcs[int(step) - 1](*step_params)
 
-    def _output_step_1_exists(self, parcfile):
+        # null maps directories
+        null_maps_dir = marker_dir / "nullmaps"
+        null_maps_dir.mkdir()
 
-        path, _ = os.path.split(parcfile)
-        files_exist = [os.path.split(x)[1] for x in os.listdir(path)]
-        files_needed = [
-            "brain_map.txt",
-            "distmat.py",
-            "index.npy",
-            "voxel_coordinates.txt",
-        ]
-        for f in files_needed:
-            if f not in files_exist:
-                return False
-        return True
+        for name in parc_names:
+            parc_dir = null_maps_dir / name
+            parc_dir.mkdir()
 
-    def _output_step_2_exists(
-        self, parc_file, marker_file, smapid, corr_method, n_pca_cov
-    ):
+            output_nullmaps = parc_dir / "nullmaps_results"
+            output_nullmaps.mkdir()
 
-        _, parc_file_tail = os.path.split(parc_file)
-        name_parc, _ = os.path.splitext(parc_file_tail)
-        output_dir = os.path.join(self.project_path, self.output_dir)
-        specific_marker_output = _specific_marker_output(
-            marker_file, self.marker_dir, output_dir, name_parc
-        )
-        smap_corr_scores = os.path.join(
-            specific_marker_output, "smap_corr_scores"
-        )
+            outpath = marker_dir / "outputs" / name
+            outpath.mkdir(parents=True)
 
-        fname = (
-            f"smapid-{smapid}-correlationmethod-{corr_method}_"
-            f"npcacovariates-{n_pca_cov}.tsv"
-        )
-        check_file = os.path.join(smap_corr_scores, fname)
-        return os.path.isfile(check_file)
+        return marker_dst, marker_parcellations
 
-    def _output_step_3_exists(
-        self, parc_file, marker_file, corr_method, alpha, n_pca_cov
-    ):
+    def _prepare_parcellation_dir(self, parcellation_path):
+        """Prepare the parcellation output directory."""
+        name = remove_nii_extensions(parcellation_path)
+        parcellation_dir = self.parcellations_dir / Path(name).name
+        parcellation_dir.mkdir()
+        shutil.copy(parcellation_path, parcellation_dir)
+        return parcellation_dir / Path(parcellation_path).name
 
-        _, parc_file_tail = os.path.split(parc_file)
-        name_parc, _ = os.path.splitext(parc_file_tail)
+    def create_jobs_dir(self, force_overwrite=False):
+        """Create the pipeline directory."""
 
-        output_dir = os.path.join(self.project_path, self.output_dir)
-        specific_marker_output = _specific_marker_output(
-            marker_file, self.marker_dir, output_dir, name_parc
-        )
-
-        if isinstance(n_pca_cov, int):
-            output_path_comps = os.path.join(
-                specific_marker_output,
-                "pca_covariates",
-                f"{n_pca_cov}_component_pca",
+        if self.jobs_dir.exists() and not force_overwrite:
+            raise FileExistsError(
+                "Pleave remove or rename existing nimgen_jobs directories."
             )
-            output_path = os.path.join(
-                output_path_comps, corr_method, f"alpha-{alpha}"
-            )
-        elif n_pca_cov is None:
-            output_path = os.path.join(
-                specific_marker_output, corr_method, f"alpha-{alpha}"
-            )
-        elif literal_eval(n_pca_cov) is None:
-            output_path = os.path.join(
-                specific_marker_output, corr_method, f"alpha-{alpha}"
+        elif self.jobs_dir.exists() and force_overwrite:
+            shutil.rmtree(self.jobs_dir)
+
+        self.jobs_dir.mkdir()
+        self.markers_dir.mkdir()
+        self.parcellations_dir.mkdir()
+        self.all_gene_outputs.mkdir()
+
+        # create the marker dirs and obtain list of associated parcellations
+        all_parcellations = []
+        for idx, marker in enumerate(self.markers):
+            new_marker_path, marker_parcellations = self._prepare_marker_dir(
+                marker
             )
 
-        genes_file = os.path.join(
-            output_path, "significant-empirical-pvalue-fdr-corrected_genes.txt"
-        )
-        if not os.path.isfile(genes_file):
-            return False
+            # create parcellation-only dirs (i.e. for distance matrices)
+            marker_specific_parcs = []
+            for parc in marker_parcellations:
+                marker_specific_parcs += [
+                    self._prepare_parcellation_dir(parc).as_posix()
+                ]
 
-        for metric in ["spearman", "pearson"]:
-            matrix_files = [
-                (
-                    "significant-genes_gene_by_gene_"
-                    f"correlation_matrix_{metric}.tsv"
-                ),
-                (
-                    "significant-genes_region_by_region_"
-                    f"correlation_matrix_{metric}.tsv"
-                ),
-                f"all-genes_gene_by_gene_correlation_matrix_{metric}.tsv",
-                f"all-genes_region_by_region_correlation_matrix_{metric}.tsv",
-            ]
-            for f in matrix_files:
-                filename = os.path.join(output_path, f)
-                if not os.path.isfile(filename):
-                    return False
+            all_parcellations += marker_specific_parcs.copy()
+            self.markers[idx]["parcellation"] = marker_specific_parcs
+            self.markers[idx]["path"] = new_marker_path
 
-        return True
+        self.all_parcellations = list(set(all_parcellations))
+
+    def create(self, force_overwrite=False):
+        """Create the base pipeline."""
+        self.create_jobs_dir(force_overwrite=force_overwrite)

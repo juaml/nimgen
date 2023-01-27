@@ -4,14 +4,10 @@
 # License: AGPL
 
 import os
-import tempfile
 
 import numpy as np
-import pandas as pd
 from nibabel import Nifti1Image
-
-from nimgen.expressions import _save_expressions
-from nimgen.pipelines import base_steps, htcondor
+from nilearn import datasets
 
 
 def _make_atlas(size):
@@ -32,86 +28,28 @@ def _make_marker_dir(tmp):
     marker_dir = f"{tmp}/markers"
     marker_file = f"{marker_dir}/marker.nii"
     os.mkdir(marker_dir)
-    marker_nii = _make_marker_nii(size=(5, 5, 2))
-    marker_nii.to_filename(marker_file)
-    return marker_dir, marker_file
+    os.system(f"touch {marker_file}")
+    return marker_file
 
 
 def _make_pipeline_configs(tmp):
-    marker_dir, marker_file = _make_marker_dir(tmp)
+    parc = datasets.fetch_atlas_schaefer_2018(100)["maps"]
     config_dict = {
-        "project_path": tmp,
-        "marker_dir": marker_dir,
-        "parcellation_files": {f"{tmp}/test_atlas.nii": ["marker.nii"]},
-        "r_path": "path/to/Rscript",
+        "name": "mockup",
+        "verbosity": "WARNING",
+        "seed": 100,
+        "markers": [{"path": _make_marker_dir(tmp), "parcellation": [parc]}],
         "pipeline": {
             "type": "HTCondor",
-            "step_1": {
-                "CPU": 8,
-                "MEMORY": 64,
-                "DISK": 100,
-            },
+            "step_1": {"CPU": 1, "MEMORY": 64, "DISK": 10},
             "step_2": {"CPU": 1, "MEMORY": 64, "DISK": 10},
             "step_3": {"CPU": 1, "MEMORY": 64, "DISK": 10},
+            "step_4": {"CPU": 1, "MEMORY": 64, "DISK": 10},
         },
-        "path_to_venv": "path/to/venv",
+        "conda_env": "conda_env_name_mockup",
         "n_surrogate_maps": 10,
         "n_pca_covariates": ["None", 1, 3, 5, 10],
         "correlation_method": ["spearman", "pearson"],
         "alpha": [0.05, 0.01],
     }
-    return config_dict, marker_dir, marker_file
-
-
-def test_steps():
-    """Test each step together since earlier steps set up for later steps."""
-    # set up and save a fake atlas as nifti
-    atlas = _make_atlas(size=(5, 5, 2))
-    with tempfile.TemporaryDirectory() as tmp:
-        atlas_path = os.path.join(tmp, "test_atlas.nii")
-        atlas.to_filename(atlas_path)
-        configs, marker_dir, marker_file = _make_pipeline_configs(tmp)
-        pipeline = htcondor.HTCondor(**configs)
-        pipeline.create()
-
-        parcellation = os.path.join(
-            pipeline.project_path,
-            pipeline.parcellations_dir,
-            "test_atlas",
-            "test_atlas.nii",
-        )
-        output_dir = os.path.join(pipeline.project_path, pipeline.output_dir)
-
-        base_steps.step_1(parcellation)
-
-        for i in range(1, 4):
-
-            exp = pd.DataFrame(
-                np.random.randint(low=5, high=100, size=(49, 10))
-            )
-            # we also need to cache some fake gene expression data so it
-            # won't take forever
-            _save_expressions(exp, parcellation)
-            base_steps.step_2(
-                parcellation,
-                marker_file,
-                marker_dir,
-                output_dir,
-                smap_id=i,
-                allen_data_dir=tmp,
-                knn=20,
-                ns=5,
-                pv=50,
-            )
-
-        # webgestalt will fail due to fake r path but the python program will
-        # continue after
-        exp = pd.DataFrame(np.random.randint(low=5, high=100, size=(49, 10)))
-        _save_expressions(exp, parcellation)
-        base_steps.step_3(
-            parcellation,
-            marker_file,
-            marker_dir,
-            output_dir,
-            r_path="this/is/not/real",
-        )
+    return config_dict

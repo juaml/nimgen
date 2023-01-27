@@ -8,6 +8,7 @@
 #          Kaustubh Patil <k.patil@fz-juelich.de>
 # License: AGPL
 
+import logging
 import os
 import warnings
 from pathlib import Path
@@ -22,12 +23,10 @@ from scipy import stats
 from sklearn.decomposition import PCA
 
 from .statistics import _get_funcbyname, dcorr
-from .utils import (
-    _read_sign_genes,
-    covariates_to_nifti,
-    logger,
-    remove_nii_extensions,
-)
+from .utils import _read_sign_genes, covariates_to_nifti, remove_nii_extensions
+
+
+logger = logging.getLogger(__name__)
 
 
 def _save_expressions(exp, atlas):
@@ -343,7 +342,9 @@ def gene_expression_correlations(
     if atlas_marker is None:
         atlas_marker = atlas
 
-    marker_aggregated, _ = _aggregate_marker(atlas_marker, marker)
+    marker_aggregated, _ = _aggregate_marker(
+        atlas_marker, marker, aggregation=aggregation_method
+    )
     marker = pd.DataFrame(marker_aggregated[aggregation_method])
 
     # parcellate gene expression data and extract ROI's where
@@ -468,6 +469,8 @@ def _aggregate_marker(atlas, vbm_nifti, aggregation=None, limits=None):
     vbm_nifti = image.load_img(vbm_nifti)
 
     # defaults (validity is checked in _get_funcbyname())
+    if isinstance(aggregation, str):
+        aggregation = [aggregation]
     if aggregation is None:  # Don't put mutables as defaults, use None instead
         aggregation = ["winsorized_mean", "mean", "std", "median"]
     if limits is None:
@@ -553,7 +556,7 @@ def _prepare_expressions(
 
     logger.info("Checking atlas and markers dimensions")
     atlas_img = nib.load(atlas)
-    nrois = np.unique(atlas_img.get_fdata()).astype(np.int).shape[0] - 1
+    nrois = np.unique(atlas_img.get_fdata()).astype(int).shape[0] - 1
     if nrois != len(marker):
         raise ValueError(
             f"Number of markers ({len(marker)}) does not match "

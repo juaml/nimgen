@@ -2,185 +2,214 @@
 
 # Authors: Yasir Demirtaş <tyasird@gmail.com>
 #          Leonard Sasse <l.sasse@fz-juelich.de>
+#          Kaustubh Patil <k.patil@fz-juelich.de>
 # License: AGPL
 
-import os
-from time import perf_counter
 
+import logging
+from itertools import combinations_with_replacement
+from pathlib import Path
+
+# import matplotlib.pyplot as plt
+import neuromaps as nm
+import nibabel as nib
 import numpy as np
-from brainsmash.mapgen.sampled import Sampled
-from brainsmash.workbench.geo import volume
-from nilearn import image
+from neuromaps.nulls import burt2020
+from neuromaps.parcellate import Parcellater
+from scipy import ndimage
+from scipy.spatial.distance import cdist  # , pdist
 
-from .utils import logger
+from .utils import remove_nii_extensions
 
 
-def export_voxel_coordinates(parcellation_file, outpath):
-    """Extract XYZ voxel coordinates and parcel numbers from every voxel.
+logger = logging.getLogger(__name__)
+
+
+def _vox_dist_original(parcellation):
+    """Generate a distance matrix for a given parcellation.
 
     Parameters
     ----------
-    parcellation_file : str or os.PathLike
-        Nifti of atlas to use for parcellation.
-    outpath : str or os.PathLike
-        directory in which to save voxel coordinate files
+    parcellation : niimg-like
+        Nifti file of parcellation for which to generate the distance matrix.
 
     Returns
     -------
-    voxel_coord_file : str or os.PathLike
-        voxel_coordinate file name `voxel_coordinates.txt`.
-    voxel_parcel_file : str or os.PathLike
-        voxel parcel file `brain_map.txt`.
+    dist : numpy.array
+        Distance matrix with shape (N_ROI x N_ROI).
+
+    This function is copied from:
+    https://netneurolab.github.io/neuromaps/
+    _modules/neuromaps/nulls/nulls.html#burt2020
     """
+    logger.info("Generating a fresh distance matrix.")
+    darr = nm.images.load_data(parcellation)
+    affine = nm.images.load_nifti(parcellation).affine
+    labels = np.trim_zeros(np.unique(darr))
+    mask = np.logical_not(np.logical_or(np.isclose(darr, 0), np.isnan(darr)))
+    xyz = nib.affines.apply_affine(affine, np.column_stack(np.where(mask)))
 
-    logger.info("Trying to export voxel coordinates..")
-    voxel_coord_file = os.path.join(outpath, "voxel_coordinates.txt")
-    voxel_parcel_file = os.path.join(outpath, "brain_map.txt")
+    parcellation = darr[mask]
+    row_dist = np.zeros((len(xyz), len(labels)), dtype="float32")
+    dist = np.zeros((len(labels), len(labels)), dtype="float32")
+    for n, row in enumerate(xyz):
+        xyz_dist = cdist(row[None], xyz).astype("float32")
+        row_dist[n] = ndimage.mean(xyz_dist, parcellation, labels)
+    for n in range(len(labels)):
+        dist[n] = ndimage.mean(row_dist[:, n], parcellation, labels)
 
-    # check txt files, if exists return filenames.
-    if os.path.isfile(voxel_coord_file) and os.path.isfile(voxel_parcel_file):
-        return voxel_coord_file, voxel_parcel_file
-
-    # load parcellation file
-    niimg = image.load_img(parcellation_file)
-    # get image data as a numpy array
-    data = niimg.get_fdata()
-    # find voxels that are not zeroes
-    idx = np.where(data > 0)
-    # list of arrays to (voxels, 3) array
-    ijk = np.vstack(idx).T
-    parcels = [data[tuple(i)] for i in ijk]
-    # xyz = nib.affines.apply_affine(niimg.affine, ijk)
-    # get mm coords
-    coords = image.coord_transform(idx[0], idx[1], idx[2], niimg.affine)
-    coords = np.vstack(coords).T
-    # save files as a txt file
-    np.savetxt(voxel_coord_file, coords, fmt="%s")
-    np.savetxt(voxel_parcel_file, parcels, fmt="%s")
-    return voxel_coord_file, voxel_parcel_file
+    return dist
 
 
-def generate_distance_matrices(
-    path,
-    chunk_size=1000,
+def vox_dist(parcellation):
+    """Generate a distance matrix for a given parcellation.
+
+    Parameters
+    ----------
+    parcellation : niimg-like
+        Nifti file of parcellation for which to generate the distance matrix.
+
+    Returns
+    -------
+    dist : numpy.array
+        Distance matrix with shape (N_ROI x N_ROI).
+
+    This function is adapted from code available in:
+    https://netneurolab.github.io/neuromaps/
+    _modules/neuromaps/nulls/nulls.html#burt2020
+    """
+    logger.info("Loading parcellation to generate distance matrix...")
+    # faster implementation by avoiding extra computation
+    darr = nm.images.load_data(parcellation)
+    affine = nm.images.load_nifti(parcellation).affine
+    labels = np.trim_zeros(np.unique(darr))
+    mask = np.logical_not(np.logical_or(np.isclose(darr, 0), np.isnan(darr)))
+    logger.info("Applying affine to coordinates of interest...")
+    xyz = nib.affines.apply_affine(affine, np.column_stack(np.where(mask)))
+
+    parcellation = darr[mask]
+    dist = np.zeros((len(labels), len(labels)), dtype="float32")
+    logger.info("Generating distance matrix, this may take a while...")
+    for i, j in combinations_with_replacement(range(len(labels)), 2):
+        l1, l2 = labels[i], labels[j]
+        dist[i, j] = (
+            cdist(xyz[parcellation == l1, :], xyz[parcellation == l2, :])
+            .mean()
+            .astype("float32")
+        )
+        dist[j, i] = dist[i, j]
+
+    return dist
+
+
+def cached_distance_matrix(parcellation_path, force_overwrite=False):
+    """Load a cached distance matrix for a given parcellation.
+
+    If a distance matrix is not yet cached, it will be generated.
+
+    Parameters
+    ----------
+    parcellation_path : path
+        Nifti file of parcellation for which to generate the distance matrix.
+    force_overwrite : boolean
+        Whether or not to force overwriting the cached distance matrix.
+
+    Returns
+    -------
+    dist : numpy.array
+        Distance matrix with shape (N_ROI x N_ROI).
+    """
+    # get the path to the parcellation
+    parcellation_path = Path(parcellation_path)
+    parent = parcellation_path.parent
+
+    # get the name of the parcellation
+    parc_name = remove_nii_extensions(parcellation_path.stem)
+
+    # path and filename distance matrix
+    dist_mat_file = parent / f"{parc_name}_dist_mat.npy"
+
+    if dist_mat_file.is_file() and not force_overwrite:
+        logger.info(f"{dist_mat_file} already exists! Loading...")
+        dist_mat = np.load(dist_mat_file)
+    else:
+        logger.info(f"Creating a new distance matrix at {dist_mat_file}")
+        dist_mat = vox_dist(parcellation_path)
+        np.save(dist_mat_file, dist_mat)
+
+    return dist_mat
+
+
+def cached_null_maps(
+    parcellation_path,
+    marker_path,
+    distmat,
+    n_perm,
+    seed=None,
+    force_overwrite=False,
 ):
-    """Generate distance matrices for BrainSMASH.
+    """Load a cached null maps file for a parcellation/marker combination.
+
+    If the null maps are not yet cached, they will be generated.
 
     Parameters
     ----------
-    path : str or os.PathLike
-        path to directory, in which the distance matrix should be saved
-    chunk_size : int, default 1000
-        The number of voxels to process per chunk. For N voxels, this will
-        impose a memory burden of N*`chunk_size` per iteration (in contrast to
-        a memory burden of N*N for a single iteration, in the absence of
-        chunking).
+    parcellation_path : path
+        Nifti file of parcellation for which to generate the distance matrix.
+    marker_path : path
+        Path to nifti file of marker of interest.
+    distmat : path
+        Path to npy file of distance matrix for this parcellation.
+    n_perm : int
+        How many null maps should be generated.
+    seed : int
+        Random seed for null map generation.
+    force_overwrite : bool
+        Whether to force overwriting the cached null maps with new ones.
 
     Returns
     -------
-    dict
-        Keys are 'D' and 'index'; values are absolute paths to the
-        corresponding files on disk. These files are used as inputs to
-        `brainsmash.mapgen.sampled.Sampled`.
+    null_maps : numpy.array
+        Null maps (n_rois, n_nullmaps).
     """
-    voxel_coordinate_file = os.path.join(path, "voxel_coordinates.txt")
-    print("Trying to generate distance matrices..")
-    matrix_files = {
-        "D": os.path.join(path, "distmat.npy"),
-        "index": os.path.join(path, "index.npy"),
-    }
+    # get the path to the marker file
+    marker_path = Path(marker_path)
+    parcellation_path = Path(parcellation_path)
+    marker_parent = marker_path.parent
 
-    # check distance_matrix_files, if there isn't any generate.
-    if os.path.isfile(matrix_files["D"]) and os.path.isfile(
-        matrix_files["index"]
-    ):
-        logger.info("Distance matrix files already exist.")
-        return matrix_files
+    # get the name of the marker and parcellation
+    marker_name = remove_nii_extensions(marker_path.stem)
+    parc_name = remove_nii_extensions(parcellation_path.stem)
 
-    pc1 = perf_counter()
-    filenames = volume(voxel_coordinate_file, path, chunk_size=chunk_size)
-    pc2 = perf_counter()
-    logger.info(f"generate_distance_matrices: {(pc2 - pc1) / 60:0.0f} minutes")
-
-    return filenames
-
-
-def generate_surrogate_map(
-    parcellation_file,
-    smap_id,
-    outpath,
-    voxel_parcel_file,
-    matrix_files,
-    **kwargs,
-):
-    """Randomly generate surrogate maps with matched spatial autocorrelation.
-
-    Parameters
-    ----------
-    parcellation_file : str or os.PathLike
-        Nifti of atlas to use for parcellation to smash.
-    smap_id : str
-        ID of surrogate maps to randomly generate.
-    outpath : str or os.PathLike
-        directory under which smaps will be saved
-    voxel_parcel_file : str or os.PathLike
-    matrix_files : dict
-        dict with keys "D" and "index" for brainsmash distance matrix files.
-
-    Returns
-    -------
-    smap_file : str or os.PathLike
-        Surrogate brain map filename.
-    """
-
-    logger.info("Trying to generate surrogate map..")
-    smaps_dir = os.path.join(outpath, "smaps")
-    smap_file = os.path.join(smaps_dir, f"{smap_id}_smap.nii")
-
-    if os.path.isfile(smap_file):
-        logger.info(f"{smap_file} already exists!")
-        return smap_file
-
-    pc1 = perf_counter()
-    gen = Sampled(
-        x=voxel_parcel_file,
-        D=matrix_files["D"],
-        index=matrix_files["index"],
-        resample=True,
-        n_jobs=1,
-        **kwargs,
+    # path and filename null maps
+    null_maps_file_name = (
+        f"marker-{marker_name}_perms-{n_perm}_seed-{seed}_desc-nullmaps"
     )
-    generated_smap = gen(n=1)
-    pc2 = perf_counter()
-    logger.info(f"generate_surrogate_maps: {(pc2 - pc1) / 60:0.0f} minutes")
-    if not os.path.isdir(smaps_dir):
-        os.mkdir(smaps_dir)
-    _create_nifti(generated_smap, parcellation_file, smap_file)
-    return smap_file
+    null_maps_dir = marker_parent / "nullmaps" / parc_name
 
+    null_maps_dir.mkdir(parents=True, exist_ok=True)
 
-def _create_nifti(xyz_arr, ref_parcellation_file, output_filename):
-    """Create nifti file based on the XYZ coordinates and ref. parc. file.
+    null_maps_file = null_maps_dir / f"{null_maps_file_name}.npy"
 
-    Parameters
-    ----------
-    xyz_arr : list
-        XYZ coordinates of brain map.
-    ref_parcellation_file : str or os.PathLike
-        Filename of reference parcellation file.
-    output_filename : str or os.PathLike
-        New filename for created nifti file.
+    if null_maps_file.is_file() and not force_overwrite:
+        logger.info(f"{null_maps_file} already exists! Loading...")
+        return np.load(null_maps_file)
 
-    Returns
-    -------
-    nii : list
-        Nifti file.
-    """
-    niimg = image.load_img(ref_parcellation_file)
-    data = niimg.get_fdata()
-    idx = np.where(data > 0)
-    ijk = np.vstack(idx)
-    data[ijk[0], ijk[1], ijk[2]] = xyz_arr
-    nii = image.new_img_like(ref_parcellation_file, data)
-    nii.to_filename(output_filename)
-    return nii
+    logger.info(f"Creating new null maps file at {null_maps_file}")
+    masker = Parcellater(parcellation_path, space="MNI152").fit()
+    data = masker.transform(marker_path, space="MNI152")[0]
+
+    # call neuromaps function to generate null maps
+    null_maps = burt2020(
+        data=data,
+        atlas="MNI152",
+        density="2mm",
+        n_perm=n_perm,
+        parcellation=parcellation_path,
+        seed=seed,
+        distmat=distmat,
+    )
+    logger.info(f"Caching newly generated null maps at {null_maps_file}")
+    np.save(null_maps_file, null_maps)
+
+    return null_maps
